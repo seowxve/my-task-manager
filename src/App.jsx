@@ -554,33 +554,29 @@ function TaskCard({ task, onEdit, onDelete, onStatusChange, dark, index }) {
   }
 
   return (
-    <div className={`task-card ripple-container rounded-2xl p-4 animate-fadeUp stagger-${Math.min(index+1,5)} transition-all ${task.status==="completed"?"opacity-55":""}`}
-      style={{background:dark?"rgba(15,23,42,0.8)":"white", border:`1px solid ${isOverdue?"rgba(244,63,94,0.3)":sub.hex+"25"}`}}>
+    <div className={`task-card glass ripple-container rounded-2xl p-4 border animate-fadeUp stagger-${Math.min(index+1,5)} ${dark?`glass-dark ${isOverdue?"border-rose-500/30":sub.border}`:`glass-light ${isOverdue?"border-rose-300":"border-slate-200"}`} ${task.status==="completed"?"opacity-60":""}`} style={{"--glow-color":`${sub.hex}33`}}>
       <div className="flex items-start gap-3">
         <button onClick={e=>{ addRipple(e); onStatusChange(task.id, task.status==="completed"?"pending":"completed"); }}
-          className="mt-0.5 w-5 h-5 flex-shrink-0 rounded-md border-2 flex items-center justify-center btn-magnetic transition-all"
-          style={task.status==="completed"?{background:`linear-gradient(135deg,${sub.hex},${sub.hex}bb)`,borderColor:"transparent"}:{borderColor:dark?"#475569":"#cbd5e1"}}>
-          {task.status==="completed" && <Icons.Check size={11} color="white"/>}
+          className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded-md border-2 flex items-center justify-center btn-magnetic ${task.status==="completed"?`border-transparent bg-gradient-to-r ${sub.gradient}`:dark?"border-slate-600 hover:border-slate-400":"border-slate-300 hover:border-slate-500"}`}>
+          {task.status==="completed" && <Icons.Check size={12} color="white"/>}
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <h3 className={`font-semibold text-sm leading-snug ${task.status==="completed"?"line-through opacity-60":""} ${dark?"text-slate-100":"text-slate-800"}`}>{task.title}</h3>
+            <h3 className={`font-medium text-sm leading-snug ${task.status==="completed"?"line-through":""} ${dark?"text-slate-200":"text-slate-800"}`}>{task.title}</h3>
             <div className="flex items-center gap-1 flex-shrink-0">
               <button onClick={onEdit}   className={`w-7 h-7 flex items-center justify-center rounded-lg btn-magnetic ${dark?"hover:bg-slate-700 text-slate-500 hover:text-slate-300":"hover:bg-slate-100 text-slate-400 hover:text-slate-600"}`}><Icons.Edit size={13}/></button>
               <button onClick={onDelete} className={`w-7 h-7 flex items-center justify-center rounded-lg btn-magnetic ${dark?"hover:bg-rose-500/20 text-slate-500 hover:text-rose-400":"hover:bg-rose-50 text-slate-400 hover:text-rose-500"}`}><Icons.Trash size={13}/></button>
             </div>
           </div>
-          {task.description && <p className={`text-xs mt-1.5 line-clamp-2 leading-relaxed ${dark?"text-slate-500":"text-slate-500"}`}>{task.description}</p>}
+          {task.description && <p className={`text-xs mt-1 line-clamp-2 ${dark?"text-slate-500":"text-slate-500"}`}>{task.description}</p>}
           <div className="mt-2.5 flex items-center flex-wrap gap-1.5">
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium" style={{background:`${sub.hex}18`,color:sub.hex}}>
-              <Icons.SubjectIcon subject={sub.id} size={11} color="currentColor"/>{sub.label}
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${sub.badge}`}>
+              <Icons.SubjectIcon subject={sub.id} size={11} color="currentColor"/>
+              {sub.label}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full border ${pri.bg} ${pri.color}`}>{pri.label}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full border ${sta.bg} ${sta.color}`}>{sta.label}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full ml-auto font-medium"
-              style={isOverdue?{color:"#f43f5e",background:"rgba(244,63,94,0.1)"}:
-                     isDueToday?{color:"#f59e0b",background:"rgba(245,158,11,0.1)"}:
-                     {color:dark?"#475569":"#94a3b8",background:dark?"rgba(30,41,59,0.8)":"rgba(241,245,249,1)"}}>
+            <span className={`text-xs px-2 py-0.5 rounded-full ml-auto ${isOverdue?"text-rose-400 bg-rose-500/20 border border-rose-500/30":isDueToday?"text-amber-400 bg-amber-500/20 border border-amber-500/30":dark?"text-slate-500 bg-slate-800 border-slate-700":"text-slate-500 bg-slate-100 border-slate-200"}`}>
               {isOverdue?"⚠ ":isDueToday?"⏰ ":""}{task.dueDate}
             </span>
           </div>
@@ -593,29 +589,28 @@ function TaskCard({ task, onEdit, onDelete, onStatusChange, dark, index }) {
 // ─── CALENDAR VIEW ────────────────────────────────────────────────────────────
 function CalendarView({ tasks, dark, onEdit, onAdd }) {
   const now = new Date();
-  const [year,   setYear]   = useState(now.getFullYear());
-  const [month,  setMonth]  = useState(now.getMonth());
-  const [calDir, setCalDir] = useState(null);
+  const [year,  setYear]  = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [calDir, setCalDir] = useState(null); // "left"|"right"|null
   const [calKey, setCalKey] = useState(0);
-  const [selected, setSelected] = useState(null); // selected date string
 
   function changeMonth(dir) {
     setCalDir(dir);
     setCalKey(k=>k+1);
-    setSelected(null);
-    if (dir==="left")  { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); }
-    else               { if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); }
-    setTimeout(()=>setCalDir(null), 380);
+    if (dir==="left") { if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1); }
+    else              { if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1); }
+    setTimeout(()=>setCalDir(null), 400);
   }
 
+  // Swipe on the calendar grid itself
   const calRef = useSwipeGesture({
     onSwipeLeft:  ()=>changeMonth("left"),
     onSwipeRight: ()=>changeMonth("right"),
   });
 
-  const firstDay    = new Date(year,month,1).getDay();
-  const daysInMonth = new Date(year,month+1,0).getDate();
-  const cells       = [...Array(firstDay).fill(null), ...Array(daysInMonth).fill(null).map((_,i)=>i+1)];
+  const firstDay     = new Date(year,month,1).getDay();
+  const daysInMonth  = new Date(year,month+1,0).getDate();
+  const cells        = [...Array(firstDay).fill(null), ...Array(daysInMonth).fill(null).map((_,i)=>i+1)];
   while (cells.length%7!==0) cells.push(null);
 
   function dateStr(d){ if(!d)return null; return `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`; }
@@ -624,86 +619,39 @@ function CalendarView({ tasks, dark, onEdit, onAdd }) {
 
   const animCls = calDir==="left" ? "cal-enter-right" : calDir==="right" ? "cal-enter-left" : "";
 
-  const selectedTasks = selected ? tasks.filter(t=>t.dueDate===selected) : [];
-
   return (
-    <div className="space-y-4 animate-fadeUp">
-      {/* Month nav */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={()=>changeMonth("right")} className={`w-9 h-9 rounded-xl flex items-center justify-center btn-magnetic ${dark?"bg-slate-800/80 text-slate-300 hover:bg-slate-700":"bg-white text-slate-600 hover:bg-slate-50 shadow-sm border border-slate-200"}`}><Icons.ChevronLeft size={16}/></button>
-          <div className="text-center" style={{minWidth:"160px"}}>
-            <h2 className={`text-xl font-bold ${dark?"text-white":"text-slate-900"}`}>{MONTHS[month]}</h2>
-            <p className={`text-xs font-medium ${dark?"text-slate-500":"text-slate-400"}`}>{year}</p>
-          </div>
-          <button onClick={()=>changeMonth("left")} className={`w-9 h-9 rounded-xl flex items-center justify-center btn-magnetic ${dark?"bg-slate-800/80 text-slate-300 hover:bg-slate-700":"bg-white text-slate-600 hover:bg-slate-50 shadow-sm border border-slate-200"}`}><Icons.ChevronRight size={16}/></button>
-        </div>
+    <div className="animate-fadeUp">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <button onClick={()=>{setYear(now.getFullYear());setMonth(now.getMonth());setSelected(null);}} className={`text-xs px-3 py-1.5 rounded-lg font-medium btn-magnetic ${dark?"bg-slate-800 text-slate-300 hover:bg-slate-700":"bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>Today</button>
-          <button onClick={()=>onAdd(selected||dateStr(now.getDate()))} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold text-white btn-magnetic" style={{background:"linear-gradient(135deg,#8b5cf6,#6d28d9)"}}>
-            <Icons.Plus size={13}/>Add
-          </button>
+          <button onClick={()=>changeMonth("right")} className={`w-9 h-9 rounded-xl flex items-center justify-center btn-magnetic ${dark?"bg-slate-800 text-slate-300 hover:bg-slate-700":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}><Icons.ChevronLeft/></button>
+          <h2 className={`text-lg font-bold min-w-36 text-center ${dark?"text-white":"text-slate-900"}`}>{MONTHS[month]} {year}</h2>
+          <button onClick={()=>changeMonth("left")}  className={`w-9 h-9 rounded-xl flex items-center justify-center btn-magnetic ${dark?"bg-slate-800 text-slate-300 hover:bg-slate-700":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}><Icons.ChevronRight/></button>
         </div>
+        <button onClick={()=>{setYear(now.getFullYear());setMonth(now.getMonth());}} className={`text-xs px-3 py-1.5 rounded-lg btn-magnetic ${dark?"bg-slate-800 text-slate-400":"bg-slate-100 text-slate-500"}`}>Today</button>
       </div>
 
-      {/* Calendar grid */}
-      <div className={`rounded-2xl overflow-hidden ${dark?"bg-slate-900/70 border border-slate-800":"bg-white border border-slate-200 shadow-sm"}`}>
-        {/* Day headers */}
+      <div ref={calRef} className={`glass rounded-2xl overflow-hidden border ${dark?"glass-dark":"glass-light"} touch-pan-y`}>
         <div className="grid grid-cols-7">
           {DAYS.map(d=>(
-            <div key={d} className={`text-center py-3 text-xs font-semibold tracking-widest uppercase ${dark?"text-slate-600":"text-slate-400"}`}>{d}</div>
+            <div key={d} className={`text-center py-2 text-xs font-semibold uppercase tracking-wider ${dark?"text-slate-500 border-b border-slate-800":"text-slate-400 border-b border-slate-200"}`}>{d}</div>
           ))}
         </div>
-        {/* Divider */}
-        <div className={`h-px ${dark?"bg-slate-800":"bg-slate-100"}`}/>
-        {/* Cells */}
-        <div key={calKey} className={`grid grid-cols-7 ${animCls}`}>
+        <div key={calKey} className={`grid grid-cols-7 divide-x divide-y ${animCls}`} style={{borderColor:dark?"rgba(51,65,85,0.4)":"rgba(226,232,240,0.8)"}}>
           {cells.map((d,i)=>{
-            const ts      = tasksFor(d);
-            const ds      = dateStr(d);
-            const isToday = ds===todayStr;
-            const isSel   = ds===selected;
-            const isWknd  = [0,6].includes(i%7);
-            const hasTasks= ts.length>0;
+            const ts = tasksFor(d);
+            const isToday = dateStr(d)===todayStr;
             return (
-              <div key={i}
-                onClick={()=>{ if(!d)return; setSelected(isSel?null:ds); }}
-                className={`relative p-2 cursor-pointer transition-all duration-200 ${dark?"hover:bg-slate-800/60":"hover:bg-violet-50/60"} ${isSel?dark?"bg-slate-800":"bg-violet-50":""} ${i>=7?dark?"border-t border-slate-800/60":"border-t border-slate-100":""}`}
-                style={{minHeight:"72px"}}>
+              <div key={i} onClick={()=>d&&onAdd(dateStr(d))} className={`cal-cell min-h-20 p-1.5 cursor-pointer relative ${d?dark?"hover:bg-slate-800/60":"hover:bg-slate-50":""} ${!d?dark?"bg-slate-900/30":"bg-slate-50/50":""}`}>
                 {d && (
                   <>
-                    {/* Date number */}
-                    <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold mb-1.5 transition-all ${
-                      isToday ? "text-white shadow-lg" :
-                      isSel   ? "text-violet-400 font-bold" :
-                      isWknd  ? dark?"text-slate-500":"text-slate-400" :
-                                dark?"text-slate-300":"text-slate-700"
-                    }`} style={isToday?{background:"linear-gradient(135deg,#8b5cf6,#6d28d9)",boxShadow:"0 2px 12px rgba(139,92,246,0.4)"}:{}}>
-                      {d}
+                    <div className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mb-1 ${isToday?"bg-violet-500 text-white shadow-lg shadow-violet-500/40":dark?"text-slate-400":"text-slate-600"}`}>{d}</div>
+                    <div className="space-y-0.5">
+                      {ts.slice(0,2).map(t=>{
+                        const s=getSubject(t.subject);
+                        return <div key={t.id} onClick={e=>{e.stopPropagation();onEdit(t);}} className={`text-xs px-1 py-0.5 rounded truncate border ${s.badge} btn-magnetic`} title={t.title}>{t.title}</div>;
+                      })}
+                      {ts.length>2 && <div className={`text-xs ${dark?"text-slate-500":"text-slate-400"}`}>+{ts.length-2}</div>}
                     </div>
-                    {/* Task dots / labels */}
-                    {hasTasks && (
-                      <div className="space-y-0.5">
-                        {ts.slice(0,2).map(t=>{
-                          const s=getSubject(t.subject);
-                          return (
-                            <div key={t.id}
-                              onClick={e=>{e.stopPropagation();onEdit(t);}}
-                              className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs truncate btn-magnetic"
-                              style={{background:`${s.hex}18`, color:s.hex, border:`1px solid ${s.hex}25`}}
-                              title={t.title}>
-                              <div className="w-1 h-1 rounded-full flex-shrink-0" style={{background:s.hex}}/>
-                              <span className="truncate">{t.title}</span>
-                            </div>
-                          );
-                        })}
-                        {ts.length>2&&(
-                          <div className={`text-xs px-1.5 font-medium ${dark?"text-slate-500":"text-slate-400"}`}>+{ts.length-2} more</div>
-                        )}
-                      </div>
-                    )}
-                    {/* Selected ring */}
-                    {isSel&&!isToday&&<div className="absolute inset-0.5 rounded-xl pointer-events-none" style={{border:"1.5px solid rgba(139,92,246,0.3)"}}/>}
                   </>
                 )}
               </div>
@@ -712,52 +660,11 @@ function CalendarView({ tasks, dark, onEdit, onAdd }) {
         </div>
       </div>
 
-      {/* Selected day task list */}
-      {selected && (
-        <div className={`rounded-2xl p-4 animate-scaleIn ${dark?"bg-slate-900/70 border border-slate-800":"bg-white border border-slate-200 shadow-sm"}`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className={`text-sm font-semibold ${dark?"text-slate-200":"text-slate-800"}`}>
-                {new Date(selected+"T12:00:00").toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}
-              </h3>
-              <p className={`text-xs mt-0.5 ${dark?"text-slate-500":"text-slate-400"}`}>{selectedTasks.length} task{selectedTasks.length!==1?"s":""}</p>
-            </div>
-            <button onClick={()=>onAdd(selected)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-semibold text-white btn-magnetic" style={{background:"linear-gradient(135deg,#8b5cf6,#6d28d9)"}}>
-              <Icons.Plus size={12}/>Add
-            </button>
-          </div>
-          {selectedTasks.length===0 ? (
-            <div className={`text-center py-6 text-sm ${dark?"text-slate-600":"text-slate-400"}`}>No tasks on this day — tap Add to create one</div>
-          ) : (
-            <div className="space-y-2">
-              {selectedTasks.map(t=>{
-                const s=getSubject(t.subject),p=PRIORITIES.find(pr=>pr.id===t.priority),st=STATUSES.find(x=>x.id===t.status);
-                return (
-                  <div key={t.id} onClick={()=>onEdit(t)} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer btn-magnetic ${dark?"hover:bg-slate-800":"hover:bg-slate-50"}`} style={{border:`1px solid ${s.hex}20`}}>
-                    <div className="w-1.5 h-10 rounded-full flex-shrink-0" style={{background:`linear-gradient(to bottom,${s.hex},${s.hex}44)`}}/>
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-medium truncate ${t.status==="completed"?"line-through opacity-50":""} ${dark?"text-slate-200":"text-slate-800"}`}>{t.title}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-medium" style={{color:s.hex}}>{s.label}</span>
-                        <span className={`text-xs ${dark?"text-slate-600":"text-slate-400"}`}>·</span>
-                        <span className={`text-xs ${p.color}`}>{p.label}</span>
-                      </div>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-lg ${st.bg} ${st.color}`}>{st.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Subject legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-2">
+      <div className="flex flex-wrap gap-3 mt-3">
         {SUBJECTS.map(s=>(
-          <div key={s.id} className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{background:s.hex}}/>
-            <span className={`text-xs ${dark?"text-slate-500":"text-slate-400"}`}>{s.label}</span>
+          <div key={s.id} className="flex items-center gap-1.5 text-xs">
+            <div className="w-3 h-3 rounded-sm" style={{background:s.hex}}/>
+            <span className={dark?"text-slate-400":"text-slate-500"}>{s.label}</span>
           </div>
         ))}
       </div>
@@ -990,10 +897,10 @@ function InsightsView({ tasks, dark }) {
     <div className="space-y-5 animate-fadeUp">
       <div><h2 className={`text-2xl font-bold ${dark?"text-white":"text-slate-900"}`}>Insights</h2><p className={`text-sm mt-0.5 ${dark?"text-slate-400":"text-slate-500"}`}>Track your progress across all subjects</p></div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[{l:"Total",v:totalTasks,c:"#8b5cf6",bg:"rgba(139,92,246,0.1)",border:"rgba(139,92,246,0.2)"},{l:"Completed",v:completedTasks,c:"#10b981",bg:"rgba(16,185,129,0.1)",border:"rgba(16,185,129,0.2)"},{l:"Overdue",v:overdueTasks,c:"#f43f5e",bg:"rgba(244,63,94,0.1)",border:"rgba(244,63,94,0.2)"},{l:"Due Today",v:dueTodayTasks,c:"#f59e0b",bg:"rgba(245,158,11,0.1)",border:"rgba(245,158,11,0.2)"}].map((s,i)=>(
-          <div key={i} className={`rounded-2xl p-4 animate-fadeUp stagger-${i+1}`} style={{background:s.bg,border:`1px solid ${s.border}`}}>
-            <div className="text-4xl font-bold font-mono leading-none mb-2" style={{color:s.c}}>{s.v}</div>
-            <div className={`text-xs font-medium ${dark?"text-slate-400":"text-slate-600"}`}>{s.l}</div>
+        {[{l:"Total",v:totalTasks,g:"from-violet-500 to-purple-600"},{l:"Completed",v:completedTasks,g:"from-emerald-500 to-green-600"},{l:"Overdue",v:overdueTasks,g:"from-rose-500 to-red-600"},{l:"Due Today",v:dueTodayTasks,g:"from-amber-500 to-yellow-600"}].map((s,i)=>(
+          <div key={i} className={`glass rounded-2xl p-4 border animate-fadeUp stagger-${i+1} ${dark?"glass-dark":"glass-light"}`}>
+            <div className={`text-3xl font-bold font-mono bg-gradient-to-r ${s.g} bg-clip-text text-transparent`}>{s.v}</div>
+            <div className={`text-xs mt-1 ${dark?"text-slate-400":"text-slate-500"}`}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -1054,110 +961,73 @@ function Dashboard({ tasks, dark, onAdd, onView }) {
   const hour = new Date().getHours();
   const greeting = hour<12?"Good morning":hour<17?"Good afternoon":"Good evening";
 
-  const statCards = [
-    { l:"Total Tasks",  v:tasks.length,        color:"#8b5cf6", bg:"rgba(139,92,246,0.12)",  border:"rgba(139,92,246,0.25)" },
-    { l:"Completed",    v:completedTasks,       color:"#10b981", bg:"rgba(16,185,129,0.12)",  border:"rgba(16,185,129,0.25)" },
-    { l:"Due Today",    v:todayTasks.length,    color:"#f59e0b", bg:"rgba(245,158,11,0.12)",  border:"rgba(245,158,11,0.25)" },
-    { l:"Overdue",      v:overdueTasks.length,  color:"#f43f5e", bg:"rgba(244,63,94,0.12)",   border:"rgba(244,63,94,0.25)" },
-  ];
-
   return (
-    <div className="space-y-6 animate-fadeUp">
-      {/* Header */}
+    <div className="space-y-5 animate-fadeUp">
       <div className="flex items-center justify-between">
         <div>
           <h2 className={`text-2xl font-bold ${dark?"text-white":"text-slate-900"}`}>{greeting} ✦</h2>
-          <p className={`text-sm mt-1 ${dark?"text-slate-400":"text-slate-500"}`}>{new Date().toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}</p>
+          <p className={`text-sm mt-0.5 ${dark?"text-slate-400":"text-slate-500"}`}>{new Date().toLocaleDateString("en",{weekday:"long",month:"long",day:"numeric"})}</p>
         </div>
-        <button onClick={()=>onAdd()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white btn-magnetic shadow-lg" style={{background:"linear-gradient(135deg,#8b5cf6,#6d28d9)",boxShadow:"0 4px 20px rgba(139,92,246,0.35)"}}>
-          <Icons.Plus size={16}/>New Task
-        </button>
+        <button onClick={()=>onAdd()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white btn-magnetic bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/30"><Icons.Plus size={16}/>New Task</button>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {statCards.map((s,i)=>(
-          <div key={i} className={`rounded-2xl p-4 animate-fadeUp stagger-${i+1}`} style={{background:s.bg, border:`1px solid ${s.border}`}}>
-            <div className="text-4xl font-bold font-mono leading-none mb-2" style={{color:s.color}}>{s.v}</div>
-            <div className={`text-xs font-medium ${dark?"text-slate-400":"text-slate-600"}`}>{s.l}</div>
+        {[{l:"Total",v:tasks.length,g:"from-slate-500 to-slate-600"},{l:"Completed",v:completedTasks,g:"from-emerald-500 to-green-600"},{l:"Due Today",v:todayTasks.length,g:"from-amber-500 to-yellow-600"},{l:"Overdue",v:overdueTasks.length,g:"from-rose-500 to-red-600"}].map((s,i)=>(
+          <div key={i} className={`glass rounded-2xl p-4 border animate-fadeUp stagger-${i+1} ${dark?"glass-dark":"glass-light"}`}>
+            <div className={`text-3xl font-bold font-mono mt-1 bg-gradient-to-r ${s.g} bg-clip-text text-transparent`}>{s.v}</div>
+            <div className={`text-xs mt-1 ${dark?"text-slate-400":"text-slate-500"}`}>{s.l}</div>
           </div>
         ))}
       </div>
 
-      {/* Progress bar */}
-      <div className={`rounded-2xl p-4 ${dark?"bg-slate-900/60 border border-slate-800":"bg-white border border-slate-200"}`}>
-        <div className="flex items-center justify-between mb-3">
-          <span className={`text-sm font-semibold ${dark?"text-slate-200":"text-slate-700"}`}>Overall Progress</span>
-          <span className="text-sm font-bold font-mono" style={{color:"#8b5cf6"}}>{Math.round(overallProgress*100)}%</span>
+      <div className={`glass rounded-2xl p-4 border ${dark?"glass-dark":"glass-light"}`}>
+        <div className="flex items-center justify-between mb-2.5">
+          <span className={`text-sm font-medium ${dark?"text-slate-300":"text-slate-700"}`}>Overall Progress</span>
+          <span className={`text-sm font-bold font-mono ${dark?"text-violet-400":"text-violet-600"}`}>{Math.round(overallProgress*100)}%</span>
         </div>
-        <div className={`h-2 rounded-full overflow-hidden ${dark?"bg-slate-800":"bg-slate-200"}`}>
-          <div className="h-full rounded-full progress-bar" style={{width:`${overallProgress*100}%`,background:"linear-gradient(90deg,#8b5cf6,#6d28d9)"}}/>
-        </div>
-        <div className={`flex justify-between text-xs mt-2 ${dark?"text-slate-600":"text-slate-400"}`}>
-          <span>{completedTasks} completed</span>
-          <span>{tasks.length - completedTasks} remaining</span>
+        <div className={`h-2.5 rounded-full ${dark?"bg-slate-800":"bg-slate-200"} overflow-hidden`}>
+          <div className="h-full rounded-full progress-bar bg-gradient-to-r from-violet-500 to-purple-600" style={{width:`${overallProgress*100}%`}}/>
         </div>
       </div>
 
-      {/* Subject cards */}
       <div>
-        <h3 className={`text-xs font-semibold mb-3 uppercase tracking-widest ${dark?"text-slate-500":"text-slate-400"}`}>Subjects</h3>
+        <h3 className={`text-xs font-semibold mb-3 uppercase tracking-wider ${dark?"text-slate-500":"text-slate-400"}`}>Subjects</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          {SUBJECTS.map((s,i)=>{
-            const st=tasks.filter(t=>t.subject===s.id),sd=st.filter(t=>t.status==="completed"),sp=st.length?sd.length/st.length:0;
-            return (
-              <button key={s.id} onClick={()=>onView("tasks",s.id)}
-                className={`subject-card rounded-2xl p-4 text-left animate-fadeUp stagger-${Math.min(i+1,5)} hover:shadow-xl transition-all`}
-                style={{background:dark?`rgba(15,23,42,0.8)`:"white", border:`1px solid ${s.hex}30`, "--glow-color":`${s.hex}33`}}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{background:`${s.hex}18`, border:`1px solid ${s.hex}30`}}>
-                    <Icons.SubjectIcon subject={s.id} size={20} color={s.hex}/>
-                  </div>
-                  <span className="text-sm font-bold font-mono" style={{color:s.hex}}>{st.length}</span>
-                </div>
-                <div className={`text-sm font-semibold mb-0.5 ${dark?"text-slate-100":"text-slate-800"}`}>{s.label}</div>
-                <div className={`text-xs mb-3 ${dark?"text-slate-500":"text-slate-400"}`}>{sd.length}/{st.length} done</div>
-                <div className={`h-1.5 rounded-full overflow-hidden ${dark?"bg-slate-800":"bg-slate-100"}`}>
-                  <div className="h-full rounded-full progress-bar" style={{width:`${sp*100}%`, background:`linear-gradient(90deg,${s.hex},${s.hex}bb)`}}/>
-                </div>
-              </button>
-            );
-          })}
+          {SUBJECTS.map((s,i)=>{ const st=tasks.filter(t=>t.subject===s.id),sd=st.filter(t=>t.status==="completed"),sp=st.length?sd.length/st.length:0; return (
+            <button key={s.id} onClick={()=>onView("tasks",s.id)} className={`subject-card glass rounded-2xl p-4 border text-left animate-fadeUp stagger-${Math.min(i+1,5)} ${dark?"glass-dark":"glass-light"} hover:shadow-lg`} style={{"--glow-color":`${s.hex}33`}}>
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg} ${s.border} border`}><Icons.SubjectIcon subject={s.id} size={20} color={s.hex}/></div>
+                <span className={`text-xs font-mono font-semibold ${s.text}`}>{st.length}</span>
+              </div>
+              <div className={`text-sm font-semibold mb-1 ${dark?"text-slate-200":"text-slate-800"}`}>{s.label}</div>
+              <div className={`text-xs mb-2.5 ${dark?"text-slate-500":"text-slate-400"}`}>{sd.length}/{st.length} done</div>
+              <div className={`h-1 rounded-full ${dark?"bg-slate-800":"bg-slate-200"} overflow-hidden`}><div className={`h-full rounded-full progress-bar ${s.bar}`} style={{width:`${sp*100}%`}}/></div>
+            </button>
+          );})}
         </div>
       </div>
 
       {todayTasks.length>0&&(
         <div>
-          <h3 className={`text-xs font-semibold mb-3 uppercase tracking-widest ${dark?"text-slate-500":"text-slate-400"}`}>Due Today</h3>
+          <h3 className={`text-xs font-semibold mb-3 uppercase tracking-wider ${dark?"text-slate-500":"text-slate-400"}`}>Due Today</h3>
           <div className="space-y-2">
-            {todayTasks.slice(0,5).map((t,i)=>{
-              const s=getSubject(t.subject),p=PRIORITIES.find(pr=>pr.id===t.priority);
-              return (
-                <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl btn-magnetic animate-fadeUp stagger-${Math.min(i+1,5)}`} style={{background:dark?"rgba(15,23,42,0.7)":"white", border:`1px solid ${s.hex}25`}}>
-                  <div className="w-0.5 h-9 rounded-full flex-shrink-0" style={{background:`linear-gradient(to bottom,${s.hex},${s.hex}55)`}}/>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{background:`${s.hex}18`}}>
-                    <Icons.SubjectIcon subject={s.id} size={16} color={s.hex}/>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium truncate ${dark?"text-slate-200":"text-slate-800"}`}>{t.title}</div>
-                    <div className={`text-xs mt-0.5 ${dark?"text-slate-500":"text-slate-400"}`}>{s.label}</div>
-                  </div>
-                  <span className="text-xs px-2.5 py-1 rounded-lg font-medium" style={{background:`${s.hex}15`, color:s.hex}}>{p.label}</span>
-                </div>
-              );
-            })}
-            {todayTasks.length>5&&<button onClick={()=>onView("tasks")} className={`w-full text-xs py-2 rounded-xl btn-magnetic ${dark?"text-slate-500 hover:bg-slate-800/60":"text-slate-400 hover:bg-slate-100"}`}>View all {todayTasks.length} tasks →</button>}
+            {todayTasks.slice(0,5).map((t,i)=>{ const s=getSubject(t.subject),p=PRIORITIES.find(pr=>pr.id===t.priority); return (
+              <div key={t.id} className={`flex items-center gap-3 p-3 rounded-xl border btn-magnetic animate-fadeUp stagger-${Math.min(i+1,5)} ${dark?"glass-dark":"glass-light"}`}>
+                <div className={`w-1 h-8 rounded-full bg-gradient-to-b ${s.gradient} flex-shrink-0`}/>
+                <Icons.SubjectIcon subject={s.id} size={18} color={s.hex}/>
+                <div className="flex-1 min-w-0"><div className={`text-sm font-medium truncate ${dark?"text-slate-200":"text-slate-800"}`}>{t.title}</div><div className={`text-xs ${dark?"text-slate-500":"text-slate-400"}`}>{s.label}</div></div>
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${p.bg} ${p.color}`}>{p.label}</span>
+              </div>
+            );})}
+            {todayTasks.length>5&&<button onClick={()=>onView("tasks")} className={`w-full text-xs py-2 rounded-xl btn-magnetic ${dark?"text-slate-500 hover:bg-slate-800":"text-slate-400 hover:bg-slate-100"}`}>View all {todayTasks.length} tasks →</button>}
           </div>
         </div>
       )}
 
       {overdueTasks.length>0&&(
-        <div className="p-4 rounded-2xl flex items-center gap-3" style={{background:"rgba(244,63,94,0.08)",border:"1px solid rgba(244,63,94,0.2)"}}>
-          <Icons.Alert size={18} color="#f43f5e"/>
-          <div>
-            <div className="text-sm font-semibold text-rose-400">{overdueTasks.length} overdue task{overdueTasks.length!==1?"s":""}</div>
-            <button onClick={()=>onView("tasks")} className="text-xs text-rose-400/70 hover:text-rose-400 underline mt-0.5">View all overdue →</button>
-          </div>
+        <div className="p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 flex items-center gap-3">
+          <Icons.Alert size={20} color="#f87171"/>
+          <div><div className="text-sm font-medium text-rose-400">{overdueTasks.length} overdue task{overdueTasks.length!==1?"s":""}</div><button onClick={()=>onView("tasks")} className="text-xs text-rose-500 hover:text-rose-400 underline">View all overdue →</button></div>
         </div>
       )}
     </div>
@@ -1278,8 +1148,6 @@ function BottomNav({ view, navTo, dark }) {
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [dark,          setDark]          = useLocalStorage("theme_dark", true);
-  // Sync dark class to document
-  useEffect(()=>{ document.documentElement.classList.toggle("dark", dark); document.body.style.background = dark ? "#020617" : "#f8fafc"; },[dark]);
   const [tasks,         setTasks]         = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [syncStatus,    setSyncStatus]    = useState("idle");
@@ -1422,6 +1290,10 @@ export default function App() {
                 <div key={i} className={`text-center rounded-lg p-2 ${dark?"bg-slate-800":"bg-slate-100"}`}><div className={`text-lg font-bold font-mono ${dark?"text-violet-400":"text-violet-600"}`}>{s.v}</div><div className={`text-xs ${dark?"text-slate-500":"text-slate-400"}`}>{s.l}</div></div>
               ))}
             </div>
+            <div className="flex gap-1.5 mb-1.5">
+              <button onClick={exportData} className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg btn-magnetic ${dark?"bg-slate-800 text-slate-400 hover:bg-slate-700":"bg-slate-100 text-slate-500 hover:bg-slate-200"}`}><Icons.Upload size={13}/>Export</button>
+              <button onClick={importData} className={`flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg btn-magnetic ${dark?"bg-slate-800 text-slate-400 hover:bg-slate-700":"bg-slate-100 text-slate-500 hover:bg-slate-200"}`}><Icons.Download size={13}/>Import</button>
+            </div>
             <button onClick={()=>setDark(d=>!d)} className={`w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg btn-magnetic ${dark?"bg-slate-800 text-slate-400 hover:bg-slate-700":"bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
               {dark?<><Icons.Sun size={13}/>Light Mode</>:<><Icons.Moon size={13}/>Dark Mode</>}
             </button>
@@ -1442,7 +1314,11 @@ export default function App() {
             ))}
           </nav>
           <div className="p-4 border-t border-inherit">
-            <button onClick={()=>setDark(d=>!d)} className={`w-full flex items-center justify-center gap-2 text-xs py-2.5 rounded-lg ${dark?"bg-slate-800 text-slate-400":"bg-slate-100 text-slate-500"}`}>
+            <div className="flex gap-1.5 mb-2">
+              <button onClick={exportData} className={`flex-1 flex items-center justify-center gap-1 text-xs py-2 rounded-lg ${dark?"bg-slate-800 text-slate-400":"bg-slate-100 text-slate-500"}`}><Icons.Upload size={13}/>Export</button>
+              <button onClick={importData} className={`flex-1 flex items-center justify-center gap-1 text-xs py-2 rounded-lg ${dark?"bg-slate-800 text-slate-400":"bg-slate-100 text-slate-500"}`}><Icons.Download size={13}/>Import</button>
+            </div>
+            <button onClick={()=>setDark(d=>!d)} className={`w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg ${dark?"bg-slate-800 text-slate-400":"bg-slate-100 text-slate-500"}`}>
               {dark?<><Icons.Sun size={13}/>Light Mode</>:<><Icons.Moon size={13}/>Dark Mode</>}
             </button>
           </div>

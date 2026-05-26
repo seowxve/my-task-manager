@@ -539,7 +539,7 @@ function TaskModal({ task, onSave, onClose, dark, prefill }) {
           </div>
 
           {/* Date + Priority */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className={lbl}>Due Date</label>
               <input type="date" value={form.dueDate} onChange={e=>set("dueDate",e.target.value)}
@@ -1376,7 +1376,7 @@ function Dashboard({ tasks, dark, onAdd, onView }) {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((s,i)=>(
           <div key={i}
             className={`rounded-2xl p-5 animate-fadeUp stagger-${i+1}`}
@@ -1592,7 +1592,7 @@ function TasksView({ tasks, dark, onAdd, onEdit, onDelete, onStatusChange, filte
       </div>
 
       {/* Subject filter chips */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         <button onClick={()=>setFilterSubject(null)}
           className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border btn-mag ${!filterSubject?"bg-violet-500/15 text-violet-300 border-violet-500/30":dark?"bg-white/4 border-white/8 text-slate-500":"bg-slate-100 border-slate-200 text-slate-500"}`}>
           All
@@ -1608,7 +1608,7 @@ function TasksView({ tasks, dark, onAdd, onEdit, onDelete, onStatusChange, filte
       {/* Task list */}
       {filtered.length===0
         ? <EmptyState subject={filterSubject} onAdd={()=>onAdd()} dark={dark}/>
-        : <div className="grid grid-cols-1 gap-3">
+        : <div className="grid grid-cols-1 gap-5">
             {filtered.map((t,i)=>
               <TaskCard key={t.id} task={t} index={i} dark={dark}
                 onEdit={()=>onEdit(t)} onDelete={()=>onDelete(t.id)} onStatusChange={onStatusChange}/>

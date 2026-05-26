@@ -378,6 +378,76 @@ const GlobalStyle = () => (
   `}</style>
 );
 
+// ─── ANIMATED LOGO ────────────────────────────────────────────────────────────
+function AnimatedLogo({ size = 36 }) {
+  return (
+    <div style={{ width: size, height: size, flexShrink: 0 }}>
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" width={size} height={size}>
+        <defs>
+          <linearGradient id="logoGrad1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#8b5cf6" />
+            <stop offset="100%" stopColor="#6366f1" />
+          </linearGradient>
+          <linearGradient id="logoGrad2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#a78bfa" />
+            <stop offset="100%" stopColor="#818cf8" />
+          </linearGradient>
+          <filter id="logoGlow">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        {/* Background rounded square */}
+        <rect width="40" height="40" rx="10" fill="url(#logoGrad1)" />
+
+        {/* Animated orbit ring */}
+        <circle cx="20" cy="20" r="11" stroke="rgba(255,255,255,0.15)" strokeWidth="1" fill="none">
+          <animate attributeName="r" values="11;12;11" dur="3s" repeatCount="indefinite" />
+        </circle>
+
+        {/* Checklist lines */}
+        <rect x="16" y="12" width="10" height="1.8" rx="0.9" fill="white" opacity="0.9">
+          <animate attributeName="opacity" values="0.9;0.5;0.9" dur="2.5s" repeatCount="indefinite" />
+        </rect>
+        <rect x="16" y="17" width="8" height="1.8" rx="0.9" fill="white" opacity="0.7">
+          <animate attributeName="opacity" values="0.7;1;0.7" dur="2s" begin="0.3s" repeatCount="indefinite" />
+        </rect>
+        <rect x="16" y="22" width="9" height="1.8" rx="0.9" fill="white" opacity="0.6">
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="3s" begin="0.6s" repeatCount="indefinite" />
+        </rect>
+        <rect x="16" y="27" width="6" height="1.8" rx="0.9" fill="white" opacity="0.5">
+          <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.2s" begin="0.9s" repeatCount="indefinite" />
+        </rect>
+
+        {/* Animated checkmarks */}
+        <g filter="url(#logoGlow)">
+          {/* Check 1 - solid */}
+          <path d="M11 13 L13.2 15.2 L15.5 12" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+            <animate attributeName="stroke-dasharray" values="0 20;20 20" dur="0.6s" fill="freeze" />
+          </path>
+          {/* Check 2 - animated pulse */}
+          <path d="M11 18 L13.2 20.2 L15.5 17" stroke="rgba(167,139,250,1)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none">
+            <animate attributeName="stroke" values="rgba(167,139,250,1);white;rgba(167,139,250,1)" dur="2s" repeatCount="indefinite" />
+          </path>
+          {/* Check 3 - orbiting dot */}
+          <circle r="1.2" fill="rgba(255,255,255,0.6)">
+            <animateMotion dur="4s" repeatCount="indefinite" path="M11,22 L13.2,24.2 L15.5,21" />
+          </circle>
+        </g>
+
+        {/* Orbiting dot around the whole logo */}
+        <circle r="1.5" fill="rgba(255,255,255,0.8)" filter="url(#logoGlow)">
+          <animateMotion dur="3s" repeatCount="indefinite">
+            <mpath href="#orbitPath" />
+          </animateMotion>
+        </circle>
+        <path id="orbitPath" d="M20,8 A12,12 0 1,1 19.99,8" fill="none" />
+      </svg>
+    </div>
+  );
+}
+
 // ─── STORAGE ───────────────────────────────────────────────────────────────────
 function useLocalStorage(key, initial) {
   const [state, setState] = useState(() => {
@@ -1407,10 +1477,10 @@ export default function App() {
           {/* Logo */}
           <div className="p-5 border-b border-inherit">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-violet-500/30">YP</div>
+              <AnimatedLogo size={36} />
               <div>
-                <div className={`text-sm font-bold ${dark ? "text-white" : "text-slate-900"}`}>YPT Planner</div>
-                <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>Elite Task Manager</div>
+                <div className={`text-sm font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>Task Manager</div>
+                <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>Elite Study Planner</div>
               </div>
             </div>
           </div>
@@ -1475,8 +1545,8 @@ export default function App() {
         <div className={`mobile-menu lg:hidden fixed inset-y-0 left-0 w-72 z-40 flex flex-col glass ${sidebar} shadow-2xl ${mobileOpen ? "open" : "closed"}`}>
           <div className="p-5 flex items-center justify-between border-b border-inherit">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white font-bold text-sm">YP</div>
-              <div className={`text-sm font-bold ${dark ? "text-white" : "text-slate-900"}`}>YPT Planner</div>
+              <AnimatedLogo size={36} />
+              <div className={`text-sm font-bold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>Task Manager</div>
             </div>
             <button onClick={() => setMobileOpen(false)} className={`text-slate-400 hover:text-slate-300 p-1`}>✕</button>
           </div>

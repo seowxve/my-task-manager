@@ -448,7 +448,81 @@ function AnimatedLogo({ size = 36 }) {
   );
 }
 
-// ─── STORAGE ───────────────────────────────────────────────────────────────────
+// ─── SUPABASE ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://vwohpwoexrfrruoyyjoj.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3b2hwd29leHJmcnJ1b3l5am9qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3OTA3NTUsImV4cCI6MjA5NTM2Njc1NX0.jSpmBPi2vjdg-caXfYgg5BdT1LBAPC74E0ut-SIXN-g";
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": options.prefer || "return=representation",
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function dbGetTasks() {
+  return await sbFetch("tasks?order=created_at.desc");
+}
+async function dbInsertTask(task) {
+  return await sbFetch("tasks", {
+    method: "POST",
+    body: JSON.stringify({
+      id: task.id,
+      title: task.title,
+      description: task.description || "",
+      due_date: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+      subject: task.subject,
+      created_at: task.createdAt || new Date().toISOString(),
+    }),
+  });
+}
+async function dbUpdateTask(task) {
+  return await sbFetch(`tasks?id=eq.${task.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: task.title,
+      description: task.description || "",
+      due_date: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+      subject: task.subject,
+    }),
+  });
+}
+async function dbDeleteTask(id) {
+  return await sbFetch(`tasks?id=eq.${id}`, {
+    method: "DELETE",
+    prefer: "return=minimal",
+  });
+}
+
+function dbToTask(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    dueDate: row.due_date,
+    priority: row.priority,
+    status: row.status,
+    subject: row.subject,
+    createdAt: row.created_at,
+  };
+}
+
+// ─── STORAGE (localStorage for non-task state) ─────────────────────────────────
 function useLocalStorage(key, initial) {
   const [state, setState] = useState(() => {
     try {
@@ -1392,26 +1466,70 @@ function TasksView({ tasks, dark, onAdd, onEdit, onDelete, onStatusChange, filte
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [dark, setDark] = useLocalStorage("theme_dark", true);
-  const [tasks, setTasks] = useLocalStorage("tasks_v2", []);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | saving | error
   const [view, setView] = useLocalStorage("view", "dashboard");
-  const [modal, setModal] = useState(null); // null | {task?, prefill?}
+  const [modal, setModal] = useState(null);
   const [filterSubject, setFilterSubject] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Load tasks from Supabase on mount
+  useEffect(() => {
+    setLoading(true);
+    dbGetTasks()
+      .then(rows => setTasks((rows || []).map(dbToTask)))
+      .catch(() => setSyncStatus("error"))
+      .finally(() => setLoading(false));
+  }, []);
+
   function openAdd(prefill = {}) { setModal({ prefill }); }
   function openEdit(task) { setModal({ task }); }
-  function saveTask(task) {
-    setTasks(ts => {
-      const existing = ts.findIndex(t => t.id === task.id);
-      if (existing >= 0) { const n = [...ts]; n[existing] = task; return n; }
-      return [task, ...ts];
-    });
+
+  async function saveTask(task) {
+    setSyncStatus("saving");
+    try {
+      const isNew = !tasks.find(t => t.id === task.id);
+      if (isNew) {
+        await dbInsertTask(task);
+        setTasks(ts => [task, ...ts]);
+      } else {
+        await dbUpdateTask(task);
+        setTasks(ts => ts.map(t => t.id === task.id ? task : t));
+      }
+      setSyncStatus("idle");
+    } catch {
+      setSyncStatus("error");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
   }
-  function deleteTask(id) {
-    if (confirm("Delete this task?")) setTasks(ts => ts.filter(t => t.id !== id));
+
+  async function deleteTask(id) {
+    if (!confirm("Delete this task?")) return;
+    setSyncStatus("saving");
+    try {
+      await dbDeleteTask(id);
+      setTasks(ts => ts.filter(t => t.id !== id));
+      setSyncStatus("idle");
+    } catch {
+      setSyncStatus("error");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
   }
-  function changeStatus(id, status) {
-    setTasks(ts => ts.map(t => t.id === id ? { ...t, status } : t));
+
+  async function changeStatus(id, status) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const updated = { ...task, status };
+    setSyncStatus("saving");
+    try {
+      await dbUpdateTask(updated);
+      setTasks(ts => ts.map(t => t.id === id ? updated : t));
+      setSyncStatus("idle");
+    } catch {
+      setSyncStatus("error");
+      setTimeout(() => setSyncStatus("idle"), 3000);
+    }
   }
 
   function exportData() {
@@ -1421,17 +1539,27 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
-  function importData() {
+  async function importData() {
     const input = document.createElement("input"); input.type = "file"; input.accept = ".json";
     input.onchange = e => {
       const f = e.target.files[0]; if (!f) return;
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = async ev => {
         try {
           const d = JSON.parse(ev.target.result);
-          if (d.tasks && Array.isArray(d.tasks)) { setTasks(d.tasks); alert(`Imported ${d.tasks.length} tasks!`); }
-          else alert("Invalid backup file.");
-        } catch { alert("Failed to parse file."); }
+          if (d.tasks && Array.isArray(d.tasks)) {
+            setSyncStatus("saving");
+            for (const task of d.tasks) {
+              const exists = tasks.find(t => t.id === task.id);
+              if (exists) await dbUpdateTask(task);
+              else await dbInsertTask(task);
+            }
+            const rows = await dbGetTasks();
+            setTasks((rows || []).map(dbToTask));
+            setSyncStatus("idle");
+            alert(`Imported ${d.tasks.length} tasks!`);
+          } else alert("Invalid backup file.");
+        } catch { alert("Failed to import."); setSyncStatus("error"); }
       };
       reader.readAsText(f);
     };
@@ -1460,9 +1588,34 @@ export default function App() {
   const sidebar = dark ? "bg-slate-900/90 border-slate-800" : "bg-white border-slate-200";
   const topbar = dark ? "bg-slate-900/80 border-slate-800" : "bg-white/90 border-slate-200";
 
+  if (loading) return (
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-6" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+      <GlobalStyle />
+      <AnimatedLogo size={64} />
+      <div className="text-center">
+        <div className="text-white text-lg font-semibold mb-1">Task Manager</div>
+        <div className="text-slate-400 text-sm">Loading your tasks…</div>
+      </div>
+      <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-600 rounded-full animate-shimmer" style={{ width: "60%" }} />
+      </div>
+    </div>
+  );
+
   return (
     <div className={`min-h-screen ${bg} noise relative`} style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
       <GlobalStyle />
+
+      {/* Sync status toast */}
+      {syncStatus !== "idle" && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg animate-scaleIn ${syncStatus === "saving" ? "bg-violet-500/20 border border-violet-500/40 text-violet-300" : "bg-rose-500/20 border border-rose-500/40 text-rose-300"}`}>
+          {syncStatus === "saving" ? (
+            <><span className="w-3 h-3 rounded-full border-2 border-violet-400 border-t-transparent animate-spin inline-block" /> Syncing…</>
+          ) : (
+            <><span>⚠️</span> Sync failed — check connection</>
+          )}
+        </div>
+      )}
 
       {/* Ambient background blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">

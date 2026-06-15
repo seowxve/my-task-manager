@@ -727,9 +727,10 @@ function TaskCard({ task, onEdit, onDelete, onStatusChange, dark, index }) {
 // ─── FOCUS TIMER ──────────────────────────────────────────────────────────────
 function FocusView({ dark, tasks }) {
   const [running, setRunning] = useLocalStorage("ypt_running", false);
-  const [elapsed, setElapsed] = useLocalStorage("ypt_elapsed", 0);
   const [sessionElapsed, setSessionElapsed] = useState(0);
   const [activeSubject, setActiveSubject] = useLocalStorage("ypt_subject", "statistics");
+  // Permanent session log — fuels the Insights "study hours per day" chart and is
+  // NEVER cleared automatically. Each entry: { subject, duration(seconds), date, type }.
   const [history, setHistory] = useLocalStorage("ypt_history", []);
   const [fullscreen, setFullscreen] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState(false);
@@ -739,49 +740,70 @@ function FocusView({ dark, tasks }) {
   const [pomodoroElapsed, setPomodoroElapsed] = useState(0);
   const [pomodoroCount, setPomodoroCount] = useLocalStorage("ypt_pomo_count", 0);
   const [dailyTarget, setDailyTarget] = useLocalStorage("ypt_daily_target", 14400); // 4 hrs
-  const intervalRef = useRef(null);
-  const startTimeRef = useRef(null);
+  const startTimeRef = useRef(0);
+  // Live config snapshot read by the ticking interval — avoids stale closures so the
+  // interval is created ONCE per run and never drifts when mode/phase/subject changes.
+  const cfgRef = useRef({});
+  cfgRef.current = { pomodoroMode, onBreak, pomodoroLen, breakLen, activeSubject };
 
   const sub = getSubject(activeSubject);
+  const todayStr = today();
 
+  // Single interval, subscribed only to `running`. All mutable config comes from cfgRef,
+  // so a pomodoro phase flip (focus → break) keeps the same anchor and counts smoothly.
   useEffect(() => {
-    if (running) {
-      startTimeRef.current = Date.now() - sessionElapsed * 1000;
-      intervalRef.current = setInterval(() => {
-        const diff = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setSessionElapsed(diff);
-        setElapsed(e => e + 1);
-        if (pomodoroMode) {
-          setPomodoroElapsed(p => {
-            const total = onBreak ? breakLen * 60 : pomodoroLen * 60;
-            if (p + 1 >= total) {
-              if (!onBreak) { setPomodoroCount(c => c + 1); setHistory(h => [...h, { subject: activeSubject, duration: pomodoroLen * 60, date: today(), type: "pomodoro" }]); }
-              setOnBreak(b => !b);
-              return 0;
+    if (!running) return;
+    startTimeRef.current = Date.now() - sessionElapsed * 1000;
+    const id = setInterval(() => {
+      const cfg = cfgRef.current;
+      setSessionElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      if (cfg.pomodoroMode) {
+        setPomodoroElapsed(prev => {
+          const total = (cfg.onBreak ? cfg.breakLen : cfg.pomodoroLen) * 60;
+          const next = prev + 1;
+          if (next >= total) {
+            // A focus round just finished → bank it permanently. Breaks are not logged.
+            if (!cfg.onBreak) {
+              setPomodoroCount(c => c + 1);
+              setHistory(h => [...h, { subject: cfg.activeSubject, duration: cfg.pomodoroLen * 60, date: today(), type: "pomodoro" }]);
             }
-            return p + 1;
-          });
-        }
-      }, 1000);
-    } else {
-      clearInterval(intervalRef.current);
+            setOnBreak(b => !b);
+            return 0;
+          }
+          return next;
+        });
+      }
+    }, 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
+
+  // Bank whatever live study time exists, then clear the live counters. Avoids
+  // double-counting: completed pomodoro rounds are already logged, so on pause we
+  // only log the in-progress focus phase (never an active break).
+  function logCurrentSession() {
+    if (pomodoroMode) {
+      if (!onBreak && pomodoroElapsed > 0) {
+        setHistory(h => [...h, { subject: activeSubject, duration: pomodoroElapsed, date: today(), type: "pomodoro" }]);
+      }
+    } else if (sessionElapsed > 0) {
+      setHistory(h => [...h, { subject: activeSubject, duration: sessionElapsed, date: today(), type: "manual" }]);
     }
-    return () => clearInterval(intervalRef.current);
-  }, [running, pomodoroMode, onBreak, pomodoroLen, breakLen]);
+    setSessionElapsed(0);
+    setPomodoroElapsed(0);
+  }
 
   function toggle() {
-    if (running) {
-      setHistory(h => [...h, { subject: activeSubject, duration: sessionElapsed, date: today(), type: "manual" }]);
-      setSessionElapsed(0);
-      setPomodoroElapsed(0);
-    }
+    if (running) logCurrentSession();
     setRunning(r => !r);
   }
+  // Reset discards the current unlogged session and the phase, but never touches the
+  // permanent history (so Insights and past days stay intact).
   function reset() {
     setRunning(false);
     setSessionElapsed(0);
     setPomodoroElapsed(0);
-    setElapsed(0);
+    setOnBreak(false);
   }
 
   function fmt(s) {
@@ -798,11 +820,18 @@ function FocusView({ dark, tasks }) {
   const pomodoroCircumference = 2 * Math.PI * 45;
   const strokeDashoffset = pomodoroCircumference * (1 - (pomodoroMode ? pomodoroElapsed / pomodoroTotal : 0));
 
+  // ── Focus stats: TODAY ONLY (resets at midnight automatically) ──
+  // Live, not-yet-logged study seconds: the running stopwatch, or the in-progress
+  // pomodoro focus phase (breaks don't count as study time).
+  const liveOngoing = running ? (pomodoroMode ? (onBreak ? 0 : pomodoroElapsed) : sessionElapsed) : 0;
+  const loggedToday = history.filter(h => h.date === todayStr).reduce((a, b) => a + b.duration, 0);
+  const elapsed = loggedToday + liveOngoing; // today's total study seconds
   const dailyProgress = Math.min(elapsed / dailyTarget, 1);
 
-  // Subject study times from history
+  // Per-subject study times for TODAY (Live Study Room) — also resets daily.
   const subjectTimes = SUBJECTS.map(s => {
-    const total = history.filter(h => h.subject === s.id).reduce((a, b) => a + b.duration, 0);
+    let total = history.filter(h => h.date === todayStr && h.subject === s.id).reduce((a, b) => a + b.duration, 0);
+    if (running && activeSubject === s.id) total += liveOngoing;
     return { ...s, total };
   });
   const maxTime = Math.max(...subjectTimes.map(s => s.total), 1);
@@ -956,7 +985,7 @@ function FocusView({ dark, tasks }) {
 
         {/* Live Study Room */}
         <div className={`glass rounded-2xl p-5 border ${dark ? "glass-dark" : "glass-light"}`}>
-          <h3 className={`text-sm font-semibold mb-4 ${dark ? "text-slate-300" : "text-slate-700"}`}>📡 Live Study Room</h3>
+          <h3 className={`text-sm font-semibold mb-4 ${dark ? "text-slate-300" : "text-slate-700"}`}>📡 Live Study Room <span className={`font-normal ${dark ? "text-slate-500" : "text-slate-400"}`}>· Today</span></h3>
           {running && (
             <div className={`mb-4 flex items-center gap-3 p-3 rounded-xl border ${sub.bg} ${sub.border}`}>
               <div className={`w-2.5 h-2.5 rounded-full animate-pulse-glow flex-shrink-0`} style={{ background: sub.hex }} />
@@ -1098,11 +1127,40 @@ function CalendarView({ tasks, dark, onEdit, onAdd }) {
 
 // ─── INSIGHTS VIEW ────────────────────────────────────────────────────────────
 function InsightsView({ tasks, dark }) {
+  // Permanent study log written by the Focus engine — never reset, so it accumulates
+  // across days. (Same localStorage key the Focus view uses.)
+  const [studyHistory] = useLocalStorage("ypt_history", []);
+
   const completedBySubject = SUBJECTS.map(s => {
     const all = tasks.filter(t => t.subject === s.id);
     const done = all.filter(t => t.status === "completed");
     return { ...s, total: all.length, done: done.length, rate: all.length ? done.length / all.length : 0 };
   });
+
+  // Study hours for the last 7 days (from the permanent focus history)
+  const last7 = [...Array(7)].map((_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().split("T")[0];
+  });
+  const studyByDay = last7.map(d => {
+    const seconds = studyHistory.filter(h => h.date === d).reduce((a, b) => a + b.duration, 0);
+    return {
+      date: d,
+      label: new Date(d).toLocaleDateString("en", { weekday: "short" }),
+      seconds,
+      hours: seconds / 3600,
+    };
+  });
+  const maxStudySecs = Math.max(...studyByDay.map(d => d.seconds), 1);
+  const weekStudySecs = studyByDay.reduce((a, b) => a + b.seconds, 0);
+  const avgStudySecs = weekStudySecs / 7;
+  const fmtHrs = (secs) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h === 0 && m === 0) return "0m";
+    return `${h > 0 ? `${h}h ` : ""}${m > 0 ? `${m}m` : ""}`.trim();
+  };
 
   // Weekly velocity (last 7 days)
   const weekDays = [...Array(7)].map((_, i) => {
@@ -1144,6 +1202,44 @@ function InsightsView({ tasks, dark }) {
             <div className={`text-xs mt-1 ${dark ? "text-slate-400" : "text-slate-500"}`}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Study hours per day (from Focus engine) */}
+      <div className={`glass rounded-2xl p-6 border ${dark ? "glass-dark" : "glass-light"}`}>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className={`text-sm font-semibold ${dark ? "text-slate-300" : "text-slate-700"}`}>Study Hours · Last 7 Days</h3>
+            <p className={`text-xs mt-0.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>Tracked from your Focus sessions</p>
+          </div>
+          <div className="text-right">
+            <div className={`text-lg font-bold font-mono ${dark ? "text-violet-400" : "text-violet-600"}`}>{fmtHrs(weekStudySecs)}</div>
+            <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>this week · ~{fmtHrs(avgStudySecs)}/day</div>
+          </div>
+        </div>
+        <div className="flex items-end justify-between gap-2 h-40">
+          {studyByDay.map((d, i) => {
+            const isToday = d.date === today();
+            return (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1.5 h-full">
+                <div className={`text-xs font-mono font-semibold ${d.seconds > 0 ? (dark ? "text-slate-300" : "text-slate-600") : (dark ? "text-slate-600" : "text-slate-300")}`}>
+                  {d.seconds > 0 ? fmtHrs(d.seconds) : "–"}
+                </div>
+                <div className="flex-1 w-full flex items-end">
+                  <div className="w-full rounded-t-lg transition-all duration-700"
+                    style={{
+                      height: `${Math.max((d.seconds / maxStudySecs) * 100, d.seconds > 0 ? 4 : 0)}%`,
+                      minHeight: d.seconds > 0 ? "6px" : "0",
+                      background: isToday
+                        ? "linear-gradient(to top, #7c3aed, #a78bfa)"
+                        : "linear-gradient(to top, #8b5cf6, #6366f1)",
+                      boxShadow: d.seconds > 0 ? "0 0 12px rgba(139,92,246,0.35)" : "none",
+                    }} />
+                </div>
+                <div className={`text-xs ${isToday ? (dark ? "text-violet-400 font-semibold" : "text-violet-600 font-semibold") : (dark ? "text-slate-500" : "text-slate-400")}`}>{d.label}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Completion rate by subject */}
@@ -1356,7 +1452,10 @@ function TasksView({ tasks, dark, onAdd, onEdit, onDelete, onStatusChange, filte
   const filtered = tasks
     .filter(t => !filterSubject || t.subject === filterSubject)
     .filter(t => filterPriority === "all" || t.priority === filterPriority)
-    .filter(t => filterStatus === "all" || t.status === filterStatus)
+    // Completed tasks leave the task list automatically (they stay in the database
+    // and keep counting toward Insights). They only reappear if you explicitly
+    // filter by the "Completed" status.
+    .filter(t => filterStatus === "all" ? t.status !== "completed" : t.status === filterStatus)
     .filter(t => !search || t.title.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === "dueDate") return a.dueDate.localeCompare(b.dueDate);

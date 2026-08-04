@@ -72,6 +72,20 @@ const SUBJECTS = [
     bar: "bg-gradient-to-r from-indigo-500 to-cyan-500",
     hex: "#6366f1",
   },
+  {
+    id: "calculus",
+    label: "Calculus",
+    icon: "∫",
+    color: "rose",
+    gradient: "from-rose-500 to-pink-600",
+    glow: "shadow-rose-500/40",
+    bg: "bg-rose-500/10",
+    border: "border-rose-500/30",
+    text: "text-rose-400",
+    badge: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    bar: "bg-gradient-to-r from-rose-500 to-pink-600",
+    hex: "#f43f5e",
+  },
 ];
 
 const PRIORITIES = [
@@ -522,6 +536,117 @@ function dbToTask(row) {
   };
 }
 
+// ─── TIME BLOCKS (Supabase, with localStorage fallback) ────────────────────────
+// One-time setup in Supabase SQL editor (mirror your `tasks` RLS policy):
+//   create table if not exists time_blocks (
+//     id text primary key,
+//     block_date date not null,
+//     start_time text not null,
+//     end_time text not null,
+//     subject text,
+//     label text,
+//     created_at timestamptz default now()
+//   );
+//   alter table time_blocks enable row level security;
+//   create policy "time_blocks anon all" on time_blocks for all using (true) with check (true);
+async function dbGetBlocks() {
+  return await sbFetch("time_blocks?order=block_date.asc");
+}
+async function dbInsertBlock(b) {
+  return await sbFetch("time_blocks", {
+    method: "POST",
+    body: JSON.stringify({
+      id: b.id, block_date: b.date, start_time: b.start, end_time: b.end,
+      subject: b.subject, label: b.label || "",
+      created_at: b.createdAt || new Date().toISOString(),
+    }),
+  });
+}
+async function dbUpdateBlock(b) {
+  return await sbFetch(`time_blocks?id=eq.${b.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      block_date: b.date, start_time: b.start, end_time: b.end,
+      subject: b.subject, label: b.label || "",
+    }),
+  });
+}
+async function dbDeleteBlock(id) {
+  return await sbFetch(`time_blocks?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+}
+function dbToBlock(row) {
+  return {
+    id: row.id, date: row.block_date, start: row.start_time, end: row.end_time,
+    subject: row.subject || "statistics", label: row.label || "", createdAt: row.created_at,
+  };
+}
+
+// ─── EXAM SEASON DATA (D-day · two summits · key dates) ─────────────────────────
+const EXAMS = [
+  { subject: "digitaltech", date: "2026-11-10", session: "PM" },
+  { subject: "physics",     date: "2026-11-12", session: "PM" },
+  { subject: "calculus",    date: "2026-11-16", session: "AM" },
+  { subject: "english",     date: "2026-11-17", session: "AM" },
+  { subject: "chemistry",   date: "2026-11-20", session: "PM" },
+  { subject: "statistics",  date: "2026-11-24", session: "AM" },
+];
+const DEADLINES = [
+  { subject: "english",     date: "2026-09-18", label: "English Connections (91478) due", confirm: true },
+  { subject: "digitaltech", date: "2026-09-25", label: "DigiTech 91907 due" },
+];
+const DGE_MARKERS = [
+  { date: "2026-08-31", label: "English DGEs begin",        subjects: ["english"] },
+  { date: "2026-09-07", label: "DGE week · Stats·DigiTech",  subjects: ["statistics", "digitaltech"] },
+  { date: "2026-09-08", label: "Physics & Chemistry DGEs",   subjects: ["physics", "chemistry"] },
+  { date: "2026-09-14", label: "DGE week · Chem·Physics",    subjects: ["chemistry", "physics"] },
+  { date: "2026-10-12", label: "Stats Prob-Dist DGE · T4",   subjects: ["statistics"] },
+];
+const RANGES = [
+  { from: "2026-08-31", to: "2026-09-18", kind: "dge" },
+  { from: "2026-09-26", to: "2026-10-11", kind: "break" },
+  { from: "2026-11-02", to: "2026-11-24", kind: "study" },
+];
+const HOLIDAYS = [
+  { date: "2026-10-26", label: "Labour Day" },
+  { date: "2026-11-13", label: "No exam · Anniversary" },
+];
+const DDAY_TARGETS = [
+  { key: "dge",  label: "DGE week",   date: "2026-09-07", accent: "#f59e0b" },
+  { key: "exam", label: "First exam", date: "2026-11-10", accent: "#3b82f6" },
+];
+
+function parseISO(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+function isoOf(dt) { return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`; }
+function daysUntil(iso) {
+  const t = new Date(); const a = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.round((parseISO(iso) - a) / 86400000);
+}
+function inRange(iso, from, to) { const d = parseISO(iso); return d >= parseISO(from) && d <= parseISO(to); }
+function minutesOf(hhmm) { const [h, m] = (hhmm || "0:0").split(":").map(Number); return h * 60 + (m || 0); }
+function fmtDur(mins) { const h = Math.floor(mins / 60), m = mins % 60; return `${h ? h + "h" : ""}${h && m ? " " : ""}${m ? m + "m" : (h ? "" : "0m")}`; }
+
+// Everything happening on a date, for calendar overlays + day detail
+function keyMetaFor(iso) {
+  const tintR = RANGES.find(r => inRange(iso, r.from, r.to));
+  const badges = [];
+  const exam = EXAMS.find(e => e.date === iso);
+  if (exam) badges.push({ type: "exam", subject: exam.subject, label: `${getSubject(exam.subject).label} exam`, note: exam.session });
+  DEADLINES.filter(d => d.date === iso).forEach(d => badges.push({ type: "due", subject: d.subject, label: d.label + (d.confirm ? " (confirm)" : "") }));
+  const dge = DGE_MARKERS.find(m => m.date === iso);
+  if (dge) badges.push({ type: "dge", subject: dge.subjects[0], label: dge.label, subjects: dge.subjects });
+  const hol = HOLIDAYS.find(h => h.date === iso);
+  if (hol) badges.push({ type: "holiday", label: hol.label });
+  return { tint: hol ? "holiday" : (tintR ? tintR.kind : null), badges };
+}
+// Sorted upcoming key events (dge + deadlines + exams)
+function keyEvents() {
+  const out = [];
+  DGE_MARKERS.forEach(m => out.push({ date: m.date, type: "dge", subject: m.subjects[0], label: m.label }));
+  DEADLINES.forEach(d => out.push({ date: d.date, type: "due", subject: d.subject, label: d.label + (d.confirm ? " (confirm)" : "") }));
+  EXAMS.forEach(e => out.push({ date: e.date, type: "exam", subject: e.subject, label: `${getSubject(e.subject).label} exam · ${e.session}` }));
+  return out.sort((a, b) => a.date < b.date ? -1 : 1);
+}
+
 // ─── STORAGE (localStorage for non-task state) ─────────────────────────────────
 function useLocalStorage(key, initial) {
   const [state, setState] = useState(() => {
@@ -541,8 +666,8 @@ function useLocalStorage(key, initial) {
 }
 
 // ─── TASK FORM MODAL ──────────────────────────────────────────────────────────
-function TaskModal({ task, onSave, onClose, dark }) {
-  const blank = { id: null, title: "", description: "", dueDate: today(), priority: "medium", status: "pending", subject: "statistics" };
+function TaskModal({ task, onSave, onClose, dark, prefill }) {
+  const blank = { id: null, title: "", description: "", dueDate: (prefill && prefill.dueDate) || today(), priority: "medium", status: "pending", subject: (prefill && prefill.subject) || "statistics" };
   const [form, setForm] = useState(task || blank);
   const sub = getSubject(form.subject);
 
@@ -1037,10 +1162,22 @@ function FocusView({ dark, tasks }) {
 }
 
 // ─── CALENDAR VIEW ────────────────────────────────────────────────────────────
-function CalendarView({ tasks, dark, onEdit, onAdd }) {
+function CalendarView({ tasks, dark, onEdit, onAdd, blocks, onOpenDay, focusDate }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+
+  // Jump to a month when a key date is picked elsewhere
+  useEffect(() => {
+    if (!focusDate) return;
+    const d = parseISO(focusDate);
+    setYear(d.getFullYear()); setMonth(d.getMonth());
+  }, [focusDate]);
+
+  function blocksFor(d) {
+    const ds = dateStr(d);
+    return ds ? blocks.filter(b => b.date === ds) : [];
+  }
 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1084,26 +1221,50 @@ function CalendarView({ tasks, dark, onEdit, onAdd }) {
         {/* Cells */}
         <div className="grid grid-cols-7 divide-x divide-y" style={{ borderColor: dark ? "rgba(51,65,85,0.4)" : "rgba(226,232,240,0.8)" }}>
           {cells.map((d, i) => {
+            const ds = dateStr(d);
             const ts = tasksFor(d);
-            const isToday = dateStr(d) === todayStr;
+            const bs = blocksFor(d);
+            const isToday = ds === todayStr;
+            const meta = d ? keyMetaFor(ds) : { tint: null, badges: [] };
+            const tintBg = meta.tint === "dge" ? (dark ? "bg-amber-500/10" : "bg-amber-50")
+              : meta.tint === "study" ? (dark ? "bg-blue-500/10" : "bg-blue-50")
+              : meta.tint === "break" ? (dark ? "bg-emerald-500/10" : "bg-emerald-50/70")
+              : meta.tint === "holiday" ? (dark ? "bg-slate-700/25" : "bg-slate-100")
+              : "";
+            const exam = meta.badges.find(b => b.type === "exam");
+            const due = meta.badges.find(b => b.type === "due");
+            const dge = meta.badges.find(b => b.type === "dge");
+            const headroom = (exam || due) ? 1 : 2;
+            const blockMin = bs.reduce((a, b) => a + Math.max(0, minutesOf(b.end) - minutesOf(b.start)), 0);
             return (
-              <div key={i} onClick={() => d && onAdd(dateStr(d))}
-                className={`cal-cell min-h-24 p-2 cursor-pointer relative ${d ? dark ? "hover:bg-slate-800/60" : "hover:bg-slate-50" : ""} ${!d ? dark ? "bg-slate-900/30" : "bg-slate-50/50" : ""}`}>
+              <div key={i} onClick={() => d && onOpenDay(ds)}
+                className={`cal-cell min-h-24 p-1.5 cursor-pointer relative overflow-hidden ${d ? (tintBg || (dark ? "hover:bg-slate-800/60" : "hover:bg-slate-50")) : (dark ? "bg-slate-900/30" : "bg-slate-50/50")}`}>
                 {d && (
                   <>
-                    <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-1.5 ${isToday ? "bg-violet-500 text-white shadow-lg shadow-violet-500/40" : dark ? "text-slate-400" : "text-slate-600"}`}>{d}</div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-semibold ${isToday ? "bg-violet-500 text-white shadow-lg shadow-violet-500/40" : dark ? "text-slate-400" : "text-slate-600"}`}>{d}</div>
+                      {dge && !exam && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title={dge.label} />}
+                    </div>
+                    {exam && <div className="text-[9px] font-mono font-bold text-white rounded px-1 py-0.5 mb-1 truncate" style={{ background: getSubject(exam.subject).hex }}>{getSubject(exam.subject).label.toUpperCase()} {exam.note}</div>}
+                    {due && <div className="text-[9px] font-mono font-bold rounded px-1 py-0.5 mb-1 truncate border" style={{ color: "#f43f5e", borderColor: "#f43f5e55", background: "#f43f5e18" }}>🚩 DUE</div>}
                     <div className="space-y-0.5">
-                      {ts.slice(0, 3).map(t => {
+                      {ts.slice(0, headroom).map(t => {
                         const s = getSubject(t.subject);
                         return (
                           <div key={t.id} onClick={e => { e.stopPropagation(); onEdit(t); }}
-                            className={`text-xs px-1.5 py-0.5 rounded-md truncate border ${s.badge} btn-magnetic`} title={t.title}>
-                            {t.title}
-                          </div>
+                            className={`text-[10px] px-1 py-0.5 rounded truncate border ${s.badge}`} title={t.title}>{t.title}</div>
                         );
                       })}
-                      {ts.length > 3 && <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>+{ts.length - 3} more</div>}
+                      {ts.length > headroom && <div className={`text-[9px] ${dark ? "text-slate-500" : "text-slate-400"}`}>+{ts.length - headroom} task</div>}
                     </div>
+                    {bs.length > 0 && (
+                      <div className="absolute bottom-1 left-1.5 right-1.5 flex items-center gap-1">
+                        <div className="flex gap-0.5 flex-1">
+                          {bs.slice(0, 5).map(b => <span key={b.id} className="h-1 flex-1 rounded-full" style={{ background: getSubject(b.subject).hex }} />)}
+                        </div>
+                        <span className={`text-[8px] font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>{fmtDur(blockMin)}</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1120,6 +1281,25 @@ function CalendarView({ tasks, dark, onEdit, onAdd }) {
             <span className={dark ? "text-slate-400" : "text-slate-500"}>{s.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* Exam-season key dates + overlay legend */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className={`glass rounded-2xl p-4 border ${dark ? "glass-dark" : "glass-light"}`}>
+          <div className={`text-xs font-semibold uppercase tracking-wider mb-2.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Upcoming key dates</div>
+          <KeyDatesList dark={dark} limit={8}
+            onPick={(iso) => { const d = parseISO(iso); setYear(d.getFullYear()); setMonth(d.getMonth()); onOpenDay(iso); }} />
+        </div>
+        <div className={`glass rounded-2xl p-4 border ${dark ? "glass-dark" : "glass-light"}`}>
+          <div className={`text-xs font-semibold uppercase tracking-wider mb-2.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>What the shading means</div>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2"><span className={`w-4 h-4 rounded ${dark ? "bg-amber-500/20" : "bg-amber-100"}`} /><span className={dark ? "text-slate-400" : "text-slate-500"}>DGE window (31 Aug – 18 Sep)</span></div>
+            <div className="flex items-center gap-2"><span className={`w-4 h-4 rounded ${dark ? "bg-emerald-500/20" : "bg-emerald-100"}`} /><span className={dark ? "text-slate-400" : "text-slate-500"}>September break</span></div>
+            <div className="flex items-center gap-2"><span className={`w-4 h-4 rounded ${dark ? "bg-blue-500/20" : "bg-blue-100"}`} /><span className={dark ? "text-slate-400" : "text-slate-500"}>Study leave / exams</span></div>
+            <div className="flex items-center gap-2"><span className="text-sm">🚩</span><span className={dark ? "text-slate-400" : "text-slate-500"}>Internal deadline · a coloured pill = exam day</span></div>
+            <div className="flex items-center gap-2"><span className="w-4 h-1 rounded-full bg-violet-400" /><span className={dark ? "text-slate-400" : "text-slate-500"}>Bars at the base of a day = your time blocks</span></div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1322,7 +1502,7 @@ function InsightsView({ tasks, dark }) {
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────────
-function Dashboard({ tasks, dark, onAdd, onView }) {
+function Dashboard({ tasks, dark, onAdd, onView, blocks, onAddBlock, onEditBlock, onDeleteBlock, onOpenDay, onEditTask, onPick }) {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === "completed").length;
   const todayTasks = tasks.filter(t => t.dueDate === today() && t.status !== "completed");
@@ -1342,6 +1522,14 @@ function Dashboard({ tasks, dark, onAdd, onView }) {
         <button onClick={() => onAdd()} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white btn-magnetic bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/30">
           + New Task
         </button>
+      </div>
+
+      {/* Command Center + Today's plan */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <CommandCenterCard dark={dark} onPick={onPick} />
+        <TodayScheduleCard blocks={blocks} tasks={tasks} dark={dark}
+          onAddBlock={onAddBlock} onEditBlock={onEditBlock} onDeleteBlock={onDeleteBlock}
+          onOpenDay={onOpenDay} onEditTask={onEditTask} />
       </div>
 
       {/* Stats row */}
@@ -1563,6 +1751,369 @@ function TasksView({ tasks, dark, onAdd, onEdit, onDelete, onStatusChange, filte
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── TWO-SUMMITS RIDGE ─────────────────────────────────────────────────────────
+function TwoSummitsRidge({ dark }) {
+  const stroke = "#8b5cf6";
+  // x-axis maps 2026-08-01 → px40 ... 2026-12-04 → px980
+  const X0 = parseISO("2026-08-01"), X1 = parseISO("2026-12-04");
+  const xFor = (iso) => 40 + ((parseISO(iso) - X0) / (X1 - X0)) * 940;
+  const todIso = today();
+  const inWindow = parseISO(todIso) >= X0 && parseISO(todIso) <= X1;
+  const todX = Math.max(40, Math.min(980, xFor(todIso)));
+  const grid = dark ? "rgba(148,163,184,0.15)" : "rgba(148,163,184,0.3)";
+  const txt = dark ? "#cbd5e1" : "#334155";
+  const faint = dark ? "#64748b" : "#94a3b8";
+  return (
+    <svg viewBox="0 0 1000 160" preserveAspectRatio="none" className="w-full" style={{ height: 132 }}>
+      <defs>
+        <linearGradient id="ridgeFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={stroke} stopOpacity="0.28" />
+          <stop offset="1" stopColor={stroke} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <line x1="0" y1="126" x2="1000" y2="126" stroke={grid} />
+      <path d="M40,124 C150,120 250,100 330,64 C360,52 400,52 430,66 C480,86 510,104 540,108 C590,112 640,104 700,84 C760,62 810,40 850,36 C890,40 940,64 980,96 L980,150 L40,150 Z" fill="url(#ridgeFill)" />
+      <path d="M40,124 C150,120 250,100 330,64 C360,52 400,52 430,66 C480,86 510,104 540,108 C590,112 640,104 700,84 C760,62 810,40 850,36 C890,40 940,64 980,96" fill="none" stroke={stroke} strokeWidth="2.5" />
+      {/* summit 1 */}
+      <line x1="380" y1="52" x2="380" y2="126" stroke="#f59e0b" strokeWidth="1.3" strokeDasharray="3 3" />
+      <circle cx="380" cy="52" r="4.5" fill="#f59e0b" />
+      <text x="380" y="26" textAnchor="middle" fontFamily="'Space Grotesk'" fontSize="14" fontWeight="700" fill={txt}>DGE crunch</text>
+      <text x="380" y="40" textAnchor="middle" fontFamily="'JetBrains Mono'" fontSize="10" fill={faint}>31 Aug – 18 Sep</text>
+      {/* dip */}
+      <text x="545" y="122" textAnchor="middle" fontFamily="'JetBrains Mono'" fontSize="9" fill="#10b981">Sep break</text>
+      {/* summit 2 */}
+      <line x1="850" y1="36" x2="850" y2="126" stroke="#3b82f6" strokeWidth="1.3" strokeDasharray="3 3" />
+      <circle cx="850" cy="36" r="4.5" fill="#3b82f6" />
+      <text x="850" y="20" textAnchor="middle" fontFamily="'Space Grotesk'" fontSize="14" fontWeight="700" fill={txt}>Externals</text>
+      <text x="850" y="34" textAnchor="middle" fontFamily="'JetBrains Mono'" fontSize="10" fill={faint}>10 – 24 Nov</text>
+      {/* today */}
+      {inWindow && (
+        <g>
+          <line x1={todX} y1="8" x2={todX} y2="126" stroke={dark ? "#e2e8f0" : "#0f172a"} strokeWidth="1.4" />
+          <circle cx={todX} cy="126" r="3.5" fill={dark ? "#e2e8f0" : "#0f172a"} />
+          <text x={todX} y="144" textAnchor="middle" fontFamily="'JetBrains Mono'" fontSize="9" fontWeight="700" fill={txt}>you are here</text>
+        </g>
+      )}
+      {/* month ticks */}
+      {[["AUG", 130], ["SEP", 360], ["OCT", 590], ["NOV", 800]].map(([m, x]) => (
+        <text key={m} x={x} y="158" fontFamily="'JetBrains Mono'" fontSize="10" fill={faint}>{m}</text>
+      ))}
+    </svg>
+  );
+}
+
+// ─── D-DAY COUNTDOWN CHIPS ─────────────────────────────────────────────────────
+function DDayChips({ dark }) {
+  const chips = DDAY_TARGETS.map(t => ({ ...t, d: daysUntil(t.date) }));
+  // add the single nearest upcoming key event
+  const next = keyEvents().find(e => daysUntil(e.date) >= 0);
+  return (
+    <div className="grid grid-cols-3 gap-2.5">
+      {chips.map(c => (
+        <div key={c.key} className={`rounded-xl p-3 border ${dark ? "bg-slate-800/50 border-slate-700/60" : "bg-slate-50 border-slate-200"}`}>
+          <div className={`text-[10px] font-mono uppercase tracking-wider ${dark ? "text-slate-500" : "text-slate-400"}`}>{c.label}</div>
+          <div className="text-2xl font-bold font-mono leading-none mt-1.5" style={{ color: c.accent }}>
+            {c.d > 0 ? c.d : c.d === 0 ? "TODAY" : "•"}
+            {c.d > 0 && <span className={`text-xs font-medium ml-1 ${dark ? "text-slate-500" : "text-slate-400"}`}>days</span>}
+          </div>
+        </div>
+      ))}
+      {next && (
+        <div className={`rounded-xl p-3 border ${dark ? "bg-slate-800/50 border-slate-700/60" : "bg-slate-50 border-slate-200"}`}>
+          <div className={`text-[10px] font-mono uppercase tracking-wider ${dark ? "text-slate-500" : "text-slate-400"}`}>Next up</div>
+          <div className="text-2xl font-bold font-mono leading-none mt-1.5" style={{ color: getSubject(next.subject).hex }}>
+            {daysUntil(next.date) === 0 ? "TODAY" : daysUntil(next.date)}
+            {daysUntil(next.date) > 0 && <span className={`text-xs font-medium ml-1 ${dark ? "text-slate-500" : "text-slate-400"}`}>days</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── KEY DATES LIST ────────────────────────────────────────────────────────────
+function KeyDatesList({ dark, onPick, limit = 6, upcomingOnly = true }) {
+  const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const tagStyle = {
+    dge:  dark ? "bg-amber-500/15 text-amber-400 border-amber-500/25" : "bg-amber-50 text-amber-600 border-amber-200",
+    due:  dark ? "bg-rose-500/15 text-rose-400 border-rose-500/25"    : "bg-rose-50 text-rose-600 border-rose-200",
+    exam: dark ? "bg-blue-500/15 text-blue-400 border-blue-500/25"    : "bg-blue-50 text-blue-600 border-blue-200",
+  };
+  let evs = keyEvents();
+  if (upcomingOnly) evs = evs.filter(e => daysUntil(e.date) >= 0);
+  evs = evs.slice(0, limit);
+  return (
+    <div className="space-y-1">
+      {evs.map((e, i) => {
+        const dt = parseISO(e.date), s = getSubject(e.subject);
+        return (
+          <button key={i} onClick={() => onPick && onPick(e.date)}
+            className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-left transition-colors ${dark ? "hover:bg-slate-800" : "hover:bg-slate-50"}`}>
+            <span className={`font-mono text-xs font-bold w-14 flex-shrink-0 ${dark ? "text-slate-400" : "text-slate-500"}`}>{dt.getDate()} {MN[dt.getMonth()]}</span>
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.hex }} />
+            <span className={`text-xs flex-1 truncate ${dark ? "text-slate-300" : "text-slate-700"}`}>{e.label}</span>
+            <span className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${tagStyle[e.type]}`}>{e.type}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── COMMAND CENTER CARD (Dashboard) ───────────────────────────────────────────
+function CommandCenterCard({ dark, onPick }) {
+  return (
+    <div className={`glass rounded-2xl p-5 border ${dark ? "glass-dark" : "glass-light"}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className={`text-sm font-semibold ${dark ? "text-slate-200" : "text-slate-800"}`}>⛰ Command Center</h3>
+          <p className={`text-xs mt-0.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>Two summits: September DGEs, then November externals</p>
+        </div>
+      </div>
+      <DDayChips dark={dark} />
+      <div className="mt-4"><TwoSummitsRidge dark={dark} /></div>
+      <div className={`mt-3 pt-3 border-t ${dark ? "border-slate-800" : "border-slate-200"}`}>
+        <div className={`text-[10px] font-mono uppercase tracking-wider mb-1.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>Upcoming key dates</div>
+        <KeyDatesList dark={dark} onPick={onPick} limit={5} />
+      </div>
+    </div>
+  );
+}
+
+// ─── BLOCK ROW (shared) ────────────────────────────────────────────────────────
+function BlockRow({ b, dark, onEdit, onDelete, compact }) {
+  const s = getSubject(b.subject);
+  const dur = minutesOf(b.end) - minutesOf(b.start);
+  return (
+    <div className={`group flex items-center gap-3 rounded-xl border ${compact ? "p-2" : "p-2.5"} ${dark ? "bg-slate-800/40 border-slate-700/50" : "bg-white border-slate-200"}`}>
+      <div className="w-1 self-stretch rounded-full flex-shrink-0" style={{ background: s.hex, minHeight: 28 }} />
+      <div className="flex-shrink-0 text-center">
+        <div className={`font-mono text-xs font-bold ${dark ? "text-slate-200" : "text-slate-700"}`}>{b.start}</div>
+        <div className={`font-mono text-[10px] ${dark ? "text-slate-500" : "text-slate-400"}`}>{b.end}</div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm font-medium truncate ${dark ? "text-slate-200" : "text-slate-800"}`}>
+          <span className="mr-1">{s.icon}</span>{b.label || s.label}
+        </div>
+        <div className={`text-[11px] ${s.text}`}>{s.label} · {fmtDur(dur > 0 ? dur : 0)}</div>
+      </div>
+      {onEdit && (
+        <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onEdit(b)} className={`w-7 h-7 rounded-lg text-xs btn-magnetic ${dark ? "hover:bg-slate-700 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>✏</button>
+          <button onClick={() => onDelete(b.id)} className={`w-7 h-7 rounded-lg text-xs btn-magnetic ${dark ? "hover:bg-rose-500/20 text-slate-400 hover:text-rose-400" : "hover:bg-rose-50 text-slate-500 hover:text-rose-500"}`}>🗑</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TODAY'S SCHEDULE (Dashboard main menu) ────────────────────────────────────
+function TodayScheduleCard({ blocks, tasks, dark, onAddBlock, onEditBlock, onDeleteBlock, onOpenDay, onEditTask }) {
+  const iso = today();
+  const dayBlocks = blocks.filter(b => b.date === iso).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+  const dueTasks = tasks.filter(t => t.dueDate === iso && t.status !== "completed");
+  const totalMin = dayBlocks.reduce((a, b) => a + Math.max(0, minutesOf(b.end) - minutesOf(b.start)), 0);
+  return (
+    <div className={`glass rounded-2xl p-5 border ${dark ? "glass-dark" : "glass-light"}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className={`text-sm font-semibold ${dark ? "text-slate-200" : "text-slate-800"}`}>🗓 Today's plan</h3>
+          <p className={`text-xs mt-0.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>
+            {dayBlocks.length ? `${dayBlocks.length} block${dayBlocks.length > 1 ? "s" : ""} · ${fmtDur(totalMin)} scheduled` : "Nothing scheduled yet"}
+            {dueTasks.length ? ` · ${dueTasks.length} due` : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => onOpenDay(iso)} className={`text-xs px-2.5 py-1.5 rounded-lg btn-magnetic ${dark ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>Open day</button>
+          <button onClick={() => onAddBlock(iso)} className="text-xs px-2.5 py-1.5 rounded-lg btn-magnetic text-white bg-gradient-to-r from-violet-500 to-purple-600">+ Block</button>
+        </div>
+      </div>
+      {dayBlocks.length > 0 ? (
+        <div className="space-y-1.5">
+          {dayBlocks.map(b => <BlockRow key={b.id} b={b} dark={dark} onEdit={onEditBlock} onDelete={onDeleteBlock} compact />)}
+        </div>
+      ) : (
+        <button onClick={() => onAddBlock(iso)} className={`w-full py-6 rounded-xl border border-dashed text-sm ${dark ? "border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400" : "border-slate-300 text-slate-400 hover:border-slate-400 hover:text-slate-500"}`}>
+          + Add your first block for today
+        </button>
+      )}
+      {dueTasks.length > 0 && (
+        <div className={`mt-3 pt-3 border-t ${dark ? "border-slate-800" : "border-slate-200"}`}>
+          <div className={`text-[10px] font-mono uppercase tracking-wider mb-1.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>Due today</div>
+          <div className="space-y-1">
+            {dueTasks.slice(0, 4).map(t => {
+              const s = getSubject(t.subject);
+              return (
+                <button key={t.id} onClick={() => onEditTask(t)} className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-left ${dark ? "hover:bg-slate-800" : "hover:bg-slate-50"}`}>
+                  <span className="text-sm">{s.icon}</span>
+                  <span className={`text-xs flex-1 truncate ${dark ? "text-slate-300" : "text-slate-700"}`}>{t.title}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${s.badge}`}>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DAY DETAIL DRAWER ─────────────────────────────────────────────────────────
+function DayDetail({ date, blocks, tasks, dark, onClose, onNav, onAddBlock, onEditBlock, onDeleteBlock, onAddTask, onEditTask }) {
+  const meta = keyMetaFor(date);
+  const dt = parseISO(date);
+  const dayBlocks = blocks.filter(b => b.date === date).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+  const dayTasks = tasks.filter(t => t.dueDate === date);
+  const totalMin = dayBlocks.reduce((a, b) => a + Math.max(0, minutesOf(b.end) - minutesOf(b.start)), 0);
+  const isToday = date === today();
+  const badgeCls = {
+    exam: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    due: "bg-rose-500/15 text-rose-400 border-rose-500/30",
+    dge: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+    holiday: dark ? "bg-slate-700/50 text-slate-300 border-slate-600" : "bg-slate-100 text-slate-500 border-slate-300",
+  };
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end animate-fadeIn" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-md h-full overflow-y-auto shadow-2xl animate-slideLeft ${dark ? "bg-slate-950 border-l border-slate-800" : "bg-white border-l border-slate-200"}`}>
+        {/* header */}
+        <div className={`sticky top-0 z-10 px-5 py-4 flex items-center justify-between glass ${dark ? "glass-dark" : "glass-light"} border-b ${dark ? "border-slate-800" : "border-slate-200"}`}>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onNav(-1)} className={`w-8 h-8 rounded-lg btn-magnetic ${dark ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>‹</button>
+            <button onClick={() => onNav(1)} className={`w-8 h-8 rounded-lg btn-magnetic ${dark ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>›</button>
+            <div className="ml-1">
+              <div className={`text-sm font-bold ${dark ? "text-white" : "text-slate-900"}`}>
+                {dt.toLocaleDateString("en", { weekday: "long" })}{isToday && <span className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 align-middle">TODAY</span>}
+              </div>
+              <div className={`text-xs font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>{dt.toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" })}</div>
+            </div>
+          </div>
+          <button onClick={onClose} className={`w-8 h-8 rounded-lg btn-magnetic ${dark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>✕</button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* key-date badges */}
+          {meta.badges.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {meta.badges.map((b, i) => (
+                <span key={i} className={`text-xs px-2.5 py-1 rounded-lg border font-medium ${badgeCls[b.type]}`}>
+                  {b.type === "exam" ? "📝 " : b.type === "due" ? "🚩 " : b.type === "dge" ? "🎯 " : "🎌 "}{b.label}{b.note ? ` · ${b.note}` : ""}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* schedule */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-500"}`}>
+                Schedule {totalMin > 0 && <span className={`ml-1.5 font-mono normal-case ${dark ? "text-slate-500" : "text-slate-400"}`}>· {fmtDur(totalMin)}</span>}
+              </div>
+              <button onClick={() => onAddBlock(date)} className="text-xs px-2.5 py-1 rounded-lg btn-magnetic text-white bg-gradient-to-r from-violet-500 to-purple-600">+ Block</button>
+            </div>
+            {dayBlocks.length > 0 ? (
+              <div className="space-y-1.5">
+                {dayBlocks.map(b => <BlockRow key={b.id} b={b} dark={dark} onEdit={onEditBlock} onDelete={onDeleteBlock} />)}
+              </div>
+            ) : (
+              <button onClick={() => onAddBlock(date)} className={`w-full py-5 rounded-xl border border-dashed text-sm ${dark ? "border-slate-700 text-slate-500 hover:text-slate-400" : "border-slate-300 text-slate-400 hover:text-slate-500"}`}>
+                + Add a time block
+              </button>
+            )}
+          </div>
+
+          {/* tasks */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-slate-400" : "text-slate-500"}`}>Tasks</div>
+              <button onClick={() => onAddTask(date)} className={`text-xs px-2.5 py-1 rounded-lg btn-magnetic ${dark ? "bg-slate-800 text-slate-400 hover:bg-slate-700" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>+ Task</button>
+            </div>
+            {dayTasks.length > 0 ? (
+              <div className="space-y-1.5">
+                {dayTasks.map(t => {
+                  const s = getSubject(t.subject), done = t.status === "completed";
+                  return (
+                    <button key={t.id} onClick={() => onEditTask(t)} className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl border text-left ${dark ? "bg-slate-800/40 border-slate-700/50 hover:bg-slate-800" : "bg-white border-slate-200 hover:bg-slate-50"}`}>
+                      <span className="text-base">{s.icon}</span>
+                      <span className={`text-sm flex-1 truncate ${done ? "line-through opacity-50" : ""} ${dark ? "text-slate-200" : "text-slate-800"}`}>{t.title}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${s.badge}`}>{s.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className={`text-xs ${dark ? "text-slate-600" : "text-slate-400"}`}>No tasks due this day.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BLOCK MODAL ───────────────────────────────────────────────────────────────
+function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
+  const blank = { id: null, date, start: "16:30", end: "18:00", subject: "chemistry", label: "" };
+  const [form, setForm] = useState(block || blank);
+  const s = getSubject(form.subject);
+  function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
+  function save() {
+    if (minutesOf(form.end) <= minutesOf(form.start)) { alert("End time must be after start time."); return; }
+    onSave({ ...form, id: form.id || uuid(), createdAt: form.createdAt || new Date().toISOString() });
+    onClose();
+  }
+  const base = dark ? "bg-slate-950 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-800";
+  const labelCls = dark ? "text-slate-400 text-xs font-medium uppercase tracking-wider" : "text-slate-500 text-xs font-medium uppercase tracking-wider";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-md rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} shadow-2xl animate-scaleIn overflow-hidden`}>
+        <div className={`h-1.5 w-full bg-gradient-to-r ${s.gradient}`} />
+        <div className="p-6 pb-2 flex items-center justify-between">
+          <div>
+            <h2 className={`text-lg font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{form.id ? "Edit block" : "New time block"}</h2>
+            <p className={`text-sm mt-0.5 font-mono ${dark ? "text-slate-400" : "text-slate-500"}`}>{parseISO(form.date).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}</p>
+          </div>
+          <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center rounded-lg btn-magnetic ${dark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>✕</button>
+        </div>
+        <div className="p-6 pt-4 space-y-4">
+          <div>
+            <label className={labelCls}>Subject</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SUBJECTS.map(su => (
+                <button key={su.id} onClick={() => set("subject", su.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border btn-magnetic ${form.subject === su.id ? su.badge : dark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600"}`}>
+                  <span>{su.icon}</span>{su.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Start</label>
+              <input type="time" value={form.start} onChange={e => set("start", e.target.value)} className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm font-mono ${base}`} />
+            </div>
+            <div>
+              <label className={labelCls}>End</label>
+              <input type="time" value={form.end} onChange={e => set("end", e.target.value)} className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm font-mono ${base}`} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Label <span className="normal-case opacity-60">(optional)</span></label>
+            <input value={form.label} onChange={e => set("label", e.target.value)} placeholder="e.g. Aqueous equilibria past paper" className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm ${base}`} />
+          </div>
+        </div>
+        <div className="p-6 pt-2 flex gap-3">
+          {form.id && onDelete && (
+            <button onClick={() => { onDelete(form.id); onClose(); }} className={`px-4 py-2.5 rounded-xl text-sm font-medium btn-magnetic ${dark ? "bg-rose-500/15 text-rose-400 hover:bg-rose-500/25" : "bg-rose-50 text-rose-500 hover:bg-rose-100"}`}>Delete</button>
+          )}
+          <button onClick={onClose} className={`flex-1 py-2.5 rounded-xl text-sm font-medium btn-magnetic ${dark ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>Cancel</button>
+          <button onClick={save} className={`flex-1 py-2.5 rounded-xl text-sm font-medium btn-magnetic text-white bg-gradient-to-r ${s.gradient} shadow-lg ${s.glow}`}>{form.id ? "Save" : "Add block"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [dark, setDark] = useLocalStorage("theme_dark", true);
   const [tasks, setTasks] = useState([]);
@@ -1572,6 +2123,11 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [filterSubject, setFilterSubject] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [blocks, setBlocks] = useState([]);
+  const [blocksDb, setBlocksDb] = useState(true); // false → localStorage fallback (table not created yet)
+  const [blockModal, setBlockModal] = useState(null); // { block?, date }
+  const [dayDetail, setDayDetail] = useState(null);    // ISO date string
+  const [calFocus, setCalFocus] = useState(null);      // ISO to jump calendar to
 
   // Load tasks from Supabase on mount
   useEffect(() => {
@@ -1581,6 +2137,42 @@ export default function App() {
       .catch(() => setSyncStatus("error"))
       .finally(() => setLoading(false));
   }, []);
+
+  // Load time blocks — Supabase first, fall back to localStorage if the table isn't there yet
+  useEffect(() => {
+    dbGetBlocks()
+      .then(rows => { setBlocks((rows || []).map(dbToBlock)); setBlocksDb(true); })
+      .catch(() => {
+        setBlocksDb(false);
+        try { const v = localStorage.getItem("time_blocks"); setBlocks(v ? JSON.parse(v) : []); } catch { setBlocks([]); }
+      });
+  }, []);
+
+  function persistBlocksLocal(next) { try { localStorage.setItem("time_blocks", JSON.stringify(next)); } catch {} }
+
+  async function saveBlock(b) {
+    const isNew = !blocks.find(x => x.id === b.id);
+    const next = isNew ? [...blocks, b] : blocks.map(x => x.id === b.id ? b : x);
+    setBlocks(next);
+    if (blocksDb) {
+      setSyncStatus("saving");
+      try { isNew ? await dbInsertBlock(b) : await dbUpdateBlock(b); setSyncStatus("idle"); }
+      catch { setBlocksDb(false); persistBlocksLocal(next); setSyncStatus("idle"); }
+    } else persistBlocksLocal(next);
+  }
+  async function deleteBlock(id) {
+    const next = blocks.filter(x => x.id !== id);
+    setBlocks(next);
+    if (blocksDb) {
+      setSyncStatus("saving");
+      try { await dbDeleteBlock(id); setSyncStatus("idle"); }
+      catch { setBlocksDb(false); persistBlocksLocal(next); setSyncStatus("idle"); }
+    } else persistBlocksLocal(next);
+  }
+  const openBlock = (date, block = null) => setBlockModal({ date, block });
+  const openDay = (iso) => setDayDetail(iso);
+  const navDay = (delta) => setDayDetail(d => { const n = parseISO(d); n.setDate(n.getDate() + delta); return isoOf(n); });
+  const pickDate = (iso) => { setView("calendar"); setCalFocus(iso); setDayDetail(iso); };
 
   function openAdd(prefill = {}) { setModal({ prefill }); }
   function openEdit(task) { setModal({ task }); }
@@ -1713,6 +2305,14 @@ export default function App() {
           ) : (
             <><span>⚠️</span> Sync failed — check connection</>
           )}
+        </div>
+      )}
+
+      {/* Time-blocks local-only notice (until the Supabase table is created) */}
+      {!blocksDb && (
+        <div className={`fixed bottom-4 left-4 z-40 max-w-xs flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs shadow-lg ${dark ? "bg-slate-800 border border-slate-700 text-slate-300" : "bg-white border border-slate-200 text-slate-600"}`}>
+          <span>💾</span>
+          <span>Time blocks are saving on this device only. Create the <b>time_blocks</b> table in Supabase (SQL in the file header) to sync everywhere.</span>
         </div>
       )}
 
@@ -1857,7 +2457,14 @@ export default function App() {
             <div className="max-w-5xl mx-auto p-4 lg:p-6 pb-24">
               {view === "dashboard" && (
                 <Dashboard tasks={tasks} dark={dark} onAdd={openAdd}
-                  onView={(v, s) => { setView(v); if (s) setFilterSubject(s); }} />
+                  onView={(v, s) => { setView(v); if (s) setFilterSubject(s); }}
+                  blocks={blocks}
+                  onAddBlock={(date) => openBlock(date)}
+                  onEditBlock={(b) => openBlock(b.date, b)}
+                  onDeleteBlock={deleteBlock}
+                  onOpenDay={openDay}
+                  onEditTask={openEdit}
+                  onPick={pickDate} />
               )}
               {view === "tasks" && (
                 <TasksView tasks={tasks} dark={dark}
@@ -1876,7 +2483,9 @@ export default function App() {
                       <p className={`text-sm mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Monthly task overview</p>
                     </div>
                   </div>
-                  <CalendarView tasks={tasks} dark={dark} onEdit={openEdit} onAdd={(date) => openAdd(date ? { dueDate: date } : {})} />
+                  <CalendarView tasks={tasks} dark={dark} onEdit={openEdit}
+                    onAdd={(date) => openAdd(date ? { dueDate: date } : {})}
+                    blocks={blocks} onOpenDay={openDay} focusDate={calFocus} />
                 </div>
               )}
               {view === "focus" && <FocusView dark={dark} tasks={tasks} />}
@@ -1885,6 +2494,35 @@ export default function App() {
           </main>
         </div>
       </div>
+
+      {/* Day detail drawer */}
+      {dayDetail && (
+        <DayDetail
+          date={dayDetail}
+          blocks={blocks}
+          tasks={tasks}
+          dark={dark}
+          onClose={() => setDayDetail(null)}
+          onNav={navDay}
+          onAddBlock={(date) => openBlock(date)}
+          onEditBlock={(b) => openBlock(b.date, b)}
+          onDeleteBlock={deleteBlock}
+          onAddTask={(date) => openAdd({ dueDate: date })}
+          onEditTask={openEdit}
+        />
+      )}
+
+      {/* Block modal */}
+      {blockModal && (
+        <BlockModal
+          block={blockModal.block}
+          date={blockModal.date}
+          dark={dark}
+          onSave={saveBlock}
+          onDelete={deleteBlock}
+          onClose={() => setBlockModal(null)}
+        />
+      )}
 
       {/* Modal */}
       {modal && (

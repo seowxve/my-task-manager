@@ -86,6 +86,20 @@ const SUBJECTS = [
     bar: "bg-gradient-to-r from-rose-500 to-pink-600",
     hex: "#f43f5e",
   },
+  {
+    id: "other",
+    label: "Other",
+    icon: "📌",
+    color: "slate",
+    gradient: "from-slate-400 to-slate-600",
+    glow: "shadow-slate-500/40",
+    bg: "bg-slate-500/10",
+    border: "border-slate-500/30",
+    text: "text-slate-400",
+    badge: "bg-slate-500/20 text-slate-300 border-slate-500/30",
+    bar: "bg-gradient-to-r from-slate-400 to-slate-500",
+    hex: "#64748b",
+  },
 ];
 
 const PRIORITIES = [
@@ -545,10 +559,22 @@ function dbToTask(row) {
 //     end_time text not null,
 //     subject text,
 //     label text,
+//     recurrence text default 'none',
+//     rec_end date,
 //     created_at timestamptz default now()
 //   );
 //   alter table time_blocks enable row level security;
 //   create policy "time_blocks anon all" on time_blocks for all using (true) with check (true);
+// Migration (if table already exists):
+//   alter table time_blocks add column if not exists recurrence text default 'none';
+//   alter table time_blocks add column if not exists rec_end date;
+const RECURRENCE_OPTIONS = [
+  { id: "none",        label: "Once" },
+  { id: "daily",       label: "Daily" },
+  { id: "weekly",      label: "Weekly" },
+  { id: "fortnightly", label: "Fortnightly" },
+  { id: "yearly",      label: "Yearly" },
+];
 async function dbGetBlocks() {
   return await sbFetch("time_blocks?order=block_date.asc");
 }
@@ -558,6 +584,8 @@ async function dbInsertBlock(b) {
     body: JSON.stringify({
       id: b.id, block_date: b.date, start_time: b.start, end_time: b.end,
       subject: b.subject, label: b.label || "",
+      recurrence: b.recurrence || "none",
+      rec_end: b.recEnd || null,
       created_at: b.createdAt || new Date().toISOString(),
     }),
   });
@@ -568,6 +596,8 @@ async function dbUpdateBlock(b) {
     body: JSON.stringify({
       block_date: b.date, start_time: b.start, end_time: b.end,
       subject: b.subject, label: b.label || "",
+      recurrence: b.recurrence || "none",
+      rec_end: b.recEnd || null,
     }),
   });
 }
@@ -577,9 +607,64 @@ async function dbDeleteBlock(id) {
 function dbToBlock(row) {
   return {
     id: row.id, date: row.block_date, start: row.start_time, end: row.end_time,
-    subject: row.subject || "statistics", label: row.label || "", createdAt: row.created_at,
+    subject: row.subject || "statistics", label: row.label || "",
+    recurrence: row.recurrence || "none", recEnd: row.rec_end || "",
+    createdAt: row.created_at,
   };
 }
+
+// Expand recurring blocks for a specific date
+function blocksForDate(iso, allBlocks) {
+  const target = parseISO(iso);
+  return allBlocks.filter(b => {
+    const anchor = parseISO(b.date);
+    if (target < anchor) return false;
+    if (b.recEnd && target > parseISO(b.recEnd)) return false;
+    const diff = Math.round((target - anchor) / 86400000);
+    switch (b.recurrence || "none") {
+      case "none":        return diff === 0;
+      case "daily":       return true;
+      case "weekly":      return diff % 7 === 0;
+      case "fortnightly": return diff % 14 === 0;
+      case "yearly":      return target.getMonth() === anchor.getMonth() && target.getDate() === anchor.getDate();
+      default:            return diff === 0;
+    }
+  });
+}
+
+// ─── SEED BLOCKS (your weekly study routine from the plan) ──────────────────────
+const SEED_BLOCKS = [
+  // MONDAY — Chemistry (self) + Physics (tutored)
+  { date: "2026-08-10", start: "16:30", end: "18:00", subject: "chemistry", label: "Chemistry revision" },
+  { date: "2026-08-10", start: "18:45", end: "20:00", subject: "physics",   label: "Prep for physics tutoring" },
+  { date: "2026-08-10", start: "20:15", end: "21:45", subject: "physics",   label: "Physics tutoring (online)" },
+  { date: "2026-08-10", start: "21:45", end: "22:15", subject: "physics",   label: "Physics write-up" },
+  // TUESDAY — DigiTech + Chemistry + English
+  { date: "2026-08-11", start: "16:30", end: "18:00", subject: "digitaltech", label: "DigiTech 91907 project" },
+  { date: "2026-08-11", start: "18:45", end: "20:15", subject: "chemistry",   label: "Organic / Aqueous equilibria" },
+  { date: "2026-08-11", start: "20:30", end: "21:30", subject: "english",     label: "Close reading practice" },
+  // WEDNESDAY — Chemistry + DigiTech + Statistics
+  { date: "2026-08-05", start: "16:30", end: "18:00", subject: "chemistry",   label: "Chemistry past paper" },
+  { date: "2026-08-05", start: "18:45", end: "20:15", subject: "digitaltech", label: "DigiTech 91907 project" },
+  { date: "2026-08-05", start: "20:30", end: "21:30", subject: "statistics",  label: "Probability concepts" },
+  // THURSDAY — English (tutored) + Physics + DigiTech
+  { date: "2026-08-06", start: "16:00", end: "17:15", subject: "english",     label: "English tutoring" },
+  { date: "2026-08-06", start: "17:30", end: "18:00", subject: "english",     label: "English write-up" },
+  { date: "2026-08-06", start: "18:45", end: "20:15", subject: "physics",     label: "Physics 3.6 review" },
+  { date: "2026-08-06", start: "20:30", end: "21:15", subject: "digitaltech", label: "DigiTech 91907" },
+  // FRIDAY — light / rest
+  { date: "2026-08-07", start: "16:30", end: "18:00", subject: "other", label: "Flexible study / rest" },
+  // SATURDAY — past paper + Japanese tutoring + English + DigiTech
+  { date: "2026-08-08", start: "09:30", end: "12:00", subject: "physics",     label: "Timed past paper (rotate subjects)" },
+  { date: "2026-08-08", start: "13:00", end: "13:30", subject: "other",       label: "Japanese tutoring (teach)" },
+  { date: "2026-08-08", start: "14:30", end: "16:00", subject: "english",     label: "English Connections (91478)" },
+  { date: "2026-08-08", start: "16:15", end: "17:15", subject: "digitaltech", label: "DigiTech 91907" },
+  // SUNDAY — Calculus + Chemistry + Statistics + maths tutoring
+  { date: "2026-08-09", start: "10:00", end: "12:30", subject: "calculus",    label: "Calculus self-study" },
+  { date: "2026-08-09", start: "13:30", end: "15:00", subject: "chemistry",   label: "Chemistry error-log review" },
+  { date: "2026-08-09", start: "15:15", end: "16:00", subject: "statistics",  label: "Statistics revision" },
+  { date: "2026-08-09", start: "16:30", end: "17:45", subject: "calculus",    label: "Maths tutoring" },
+].map(b => ({ ...b, id: uuid(), recurrence: "weekly", recEnd: "2026-11-24", createdAt: new Date().toISOString() }));
 
 // ─── EXAM SEASON DATA (D-day · two summits · key dates) ─────────────────────────
 const EXAMS = [
@@ -1176,7 +1261,7 @@ function CalendarView({ tasks, dark, onEdit, onAdd, blocks, onOpenDay, focusDate
 
   function blocksFor(d) {
     const ds = dateStr(d);
-    return ds ? blocks.filter(b => b.date === ds) : [];
+    return ds ? blocksForDate(ds, blocks) : [];
   }
 
   const firstDay = new Date(year, month, 1).getDay();
@@ -1895,7 +1980,14 @@ function BlockRow({ b, dark, onEdit, onDelete, compact }) {
         <div className={`text-sm font-medium truncate ${dark ? "text-slate-200" : "text-slate-800"}`}>
           <span className="mr-1">{s.icon}</span>{b.label || s.label}
         </div>
-        <div className={`text-[11px] ${s.text}`}>{s.label} · {fmtDur(dur > 0 ? dur : 0)}</div>
+        <div className={`text-[11px] flex items-center gap-1.5 ${s.text}`}>
+          {s.label} · {fmtDur(dur > 0 ? dur : 0)}
+          {b.recurrence && b.recurrence !== "none" && (
+            <span className={`px-1 py-0.5 rounded text-[9px] font-mono ${dark ? "bg-slate-700/60 text-slate-400" : "bg-slate-100 text-slate-500"}`}>
+              🔁 {b.recurrence}
+            </span>
+          )}
+        </div>
       </div>
       {onEdit && (
         <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
@@ -1910,7 +2002,7 @@ function BlockRow({ b, dark, onEdit, onDelete, compact }) {
 // ─── TODAY'S SCHEDULE (Dashboard main menu) ────────────────────────────────────
 function TodayScheduleCard({ blocks, tasks, dark, onAddBlock, onEditBlock, onDeleteBlock, onOpenDay, onEditTask }) {
   const iso = today();
-  const dayBlocks = blocks.filter(b => b.date === iso).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+  const dayBlocks = blocksForDate(iso, blocks).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
   const dueTasks = tasks.filter(t => t.dueDate === iso && t.status !== "completed");
   const totalMin = dayBlocks.reduce((a, b) => a + Math.max(0, minutesOf(b.end) - minutesOf(b.start)), 0);
   return (
@@ -1962,7 +2054,7 @@ function TodayScheduleCard({ blocks, tasks, dark, onAddBlock, onEditBlock, onDel
 function DayDetail({ date, blocks, tasks, dark, onClose, onNav, onAddBlock, onEditBlock, onDeleteBlock, onAddTask, onEditTask }) {
   const meta = keyMetaFor(date);
   const dt = parseISO(date);
-  const dayBlocks = blocks.filter(b => b.date === date).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
+  const dayBlocks = blocksForDate(date, blocks).sort((a, b) => minutesOf(a.start) - minutesOf(b.start));
   const dayTasks = tasks.filter(t => t.dueDate === date);
   const totalMin = dayBlocks.reduce((a, b) => a + Math.max(0, minutesOf(b.end) - minutesOf(b.start)), 0);
   const isToday = date === today();
@@ -2053,7 +2145,7 @@ function DayDetail({ date, blocks, tasks, dark, onClose, onNav, onAddBlock, onEd
 
 // ─── BLOCK MODAL ───────────────────────────────────────────────────────────────
 function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
-  const blank = { id: null, date, start: "16:30", end: "18:00", subject: "chemistry", label: "" };
+  const blank = { id: null, date, start: "16:30", end: "18:00", subject: "chemistry", label: "", recurrence: "none", recEnd: "" };
   const [form, setForm] = useState(block || blank);
   const s = getSubject(form.subject);
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); }
@@ -2064,6 +2156,7 @@ function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
   }
   const base = dark ? "bg-slate-950 border-slate-800 text-slate-100" : "bg-white border-slate-200 text-slate-800";
   const labelCls = dark ? "text-slate-400 text-xs font-medium uppercase tracking-wider" : "text-slate-500 text-xs font-medium uppercase tracking-wider";
+  const isRecurring = form.recurrence && form.recurrence !== "none";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -2072,11 +2165,14 @@ function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
         <div className="p-6 pb-2 flex items-center justify-between">
           <div>
             <h2 className={`text-lg font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{form.id ? "Edit block" : "New time block"}</h2>
-            <p className={`text-sm mt-0.5 font-mono ${dark ? "text-slate-400" : "text-slate-500"}`}>{parseISO(form.date).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}</p>
+            <p className={`text-sm mt-0.5 font-mono ${dark ? "text-slate-400" : "text-slate-500"}`}>
+              {parseISO(form.date).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}
+              {isRecurring && <span className="ml-1.5 text-violet-400">· {RECURRENCE_OPTIONS.find(r => r.id === form.recurrence)?.label}</span>}
+            </p>
           </div>
           <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center rounded-lg btn-magnetic ${dark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>✕</button>
         </div>
-        <div className="p-6 pt-4 space-y-4">
+        <div className="p-6 pt-4 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className={labelCls}>Subject</label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -2101,6 +2197,27 @@ function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
             <label className={labelCls}>Label <span className="normal-case opacity-60">(optional)</span></label>
             <input value={form.label} onChange={e => set("label", e.target.value)} placeholder="e.g. Aqueous equilibria past paper" className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm ${base}`} />
           </div>
+          {/* Recurrence */}
+          <div>
+            <label className={labelCls}>Repeats</label>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {RECURRENCE_OPTIONS.map(r => (
+                <button key={r.id} onClick={() => set("recurrence", r.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border btn-magnetic transition-all ${form.recurrence === r.id ? "bg-violet-500/20 text-violet-300 border-violet-500/30" : dark ? "bg-slate-800 border-slate-700 text-slate-500" : "bg-slate-100 border-slate-200 text-slate-500"}`}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {isRecurring && (
+            <div>
+              <label className={labelCls}>Repeat until <span className="normal-case opacity-60">(leave blank for no end)</span></label>
+              <input type="date" value={form.recEnd || ""} onChange={e => set("recEnd", e.target.value)} className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm font-mono ${base}`} />
+            </div>
+          )}
+          {form.id && isRecurring && (
+            <p className={`text-[11px] ${dark ? "text-slate-500" : "text-slate-400"}`}>⚡ Editing a recurring block changes all occurrences. To change just one day, delete and add a new one-off block.</p>
+          )}
         </div>
         <div className="p-6 pt-2 flex gap-3">
           {form.id && onDelete && (
@@ -2139,12 +2256,34 @@ export default function App() {
   }, []);
 
   // Load time blocks — Supabase first, fall back to localStorage if the table isn't there yet
+  // If no blocks exist and never seeded, insert the suggested weekly study routine
   useEffect(() => {
     dbGetBlocks()
-      .then(rows => { setBlocks((rows || []).map(dbToBlock)); setBlocksDb(true); })
+      .then(async (rows) => {
+        const existing = (rows || []).map(dbToBlock);
+        setBlocksDb(true);
+        if (existing.length === 0 && !localStorage.getItem("blocks_seeded")) {
+          // Seed the weekly study routine
+          for (const b of SEED_BLOCKS) { try { await dbInsertBlock(b); } catch {} }
+          localStorage.setItem("blocks_seeded", "1");
+          setBlocks(SEED_BLOCKS);
+        } else {
+          setBlocks(existing);
+        }
+      })
       .catch(() => {
         setBlocksDb(false);
-        try { const v = localStorage.getItem("time_blocks"); setBlocks(v ? JSON.parse(v) : []); } catch { setBlocks([]); }
+        try {
+          const v = localStorage.getItem("time_blocks");
+          const existing = v ? JSON.parse(v) : [];
+          if (existing.length === 0 && !localStorage.getItem("blocks_seeded")) {
+            localStorage.setItem("time_blocks", JSON.stringify(SEED_BLOCKS));
+            localStorage.setItem("blocks_seeded", "1");
+            setBlocks(SEED_BLOCKS);
+          } else {
+            setBlocks(existing);
+          }
+        } catch { setBlocks([]); }
       });
   }, []);
 

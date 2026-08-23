@@ -114,7 +114,7 @@ const STATUSES = [
   { id: "completed", label: "Completed", color: "text-emerald-400", bg: "bg-emerald-500/20 border-emerald-500/30" },
 ];
 
-const VIEWS = ["dashboard", "tasks", "calendar", "focus", "insights"];
+const VIEWS = ["dashboard", "tasks", "calendar", "focus", "quiz", "insights"];
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1241,6 +1241,233 @@ function FocusView({ dark, tasks }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── QUIZ (spaced-repetition, 4-option recall) ─────────────────────────────────
+// Question bank — NCEA L3 Physics, Mechanics. Add more banks by giving each
+// question a different `subject`/`cat` and extending QUIZ_CATEGORIES.
+const QUIZ_QUESTIONS = [
+  // Kinematics
+  { id: "q1", cat: "Kinematics", q: "Which equation should you reach for when you don't know the time t?", options: ["v = u + at", "s = ut + ½at²", "v² = u² + 2as", "s = ½(u + v)t"], correct: 2 },
+  { id: "q2", cat: "Kinematics", q: "On a velocity-time graph, what does the gradient represent?", options: ["Displacement", "Acceleration", "Momentum", "Jerk"], correct: 1 },
+  { id: "q3", cat: "Kinematics", q: "On a velocity-time graph, what does the area under the line represent?", options: ["Acceleration", "Average speed", "Displacement", "Force"], correct: 2 },
+  { id: "q4", cat: "Kinematics", q: "At the very top of a projectile's arc (launched at an angle), which is true?", options: ["Both velocity components are zero", "Vertical velocity is zero, horizontal is unchanged", "Horizontal velocity is zero, vertical is unchanged", "Acceleration is zero"], correct: 1 },
+  { id: "q5", cat: "Kinematics", q: "What determines the total time of flight of a projectile that lands at the same height it launched from?", options: ["Horizontal velocity only", "Vertical motion only", "Both equally", "Launch angle only, independent of speed"], correct: 1 },
+  // Dynamics
+  { id: "q6", cat: "Dynamics", q: "Newton's First Law says an object keeps constant velocity unless...", options: ["gravity acts on it", "a net force acts on it", "its mass changes", "friction is present"], correct: 1 },
+  { id: "q7", cat: "Dynamics", q: "F = ma is a statement of which law?", options: ["Newton's 1st Law", "Newton's 2nd Law", "Newton's 3rd Law", "Conservation of momentum"], correct: 1 },
+  { id: "q8", cat: "Dynamics", q: "Which pair is a genuine Newton's Third Law pair?", options: ["Normal force on a book and the book's weight", "A rocket pushing exhaust down, and the exhaust pushing the rocket up", "Friction and normal force on a sliding block", "Tension in a rope and the weight it supports"], correct: 1 },
+  { id: "q9", cat: "Dynamics", q: "Centripetal force is best described as...", options: ["a separate outward force in circular motion", "the net (resultant) force toward the centre, provided by tension/gravity/friction", "a force that only exists without friction", "an extra force added to gravity"], correct: 1 },
+  { id: "q10", cat: "Dynamics", q: "On a frictionless incline at angle θ, the weight component parallel to the slope is...", options: ["mg cosθ", "mg sinθ", "mg tanθ", "mg"], correct: 1 },
+  // Momentum
+  { id: "q11", cat: "Momentum", q: "Momentum is defined as...", options: ["mass × velocity", "mass × acceleration", "force × time", "½ × mass × velocity²"], correct: 0 },
+  { id: "q12", cat: "Momentum", q: "Impulse is equal to...", options: ["change in kinetic energy", "change in momentum", "force × distance", "mass × displacement"], correct: 1 },
+  { id: "q13", cat: "Momentum", q: "In an isolated system, total momentum is conserved...", options: ["only in elastic collisions", "only in inelastic collisions", "in both elastic and inelastic collisions", "only if kinetic energy is also conserved"], correct: 2 },
+  { id: "q14", cat: "Momentum", q: "In a perfectly elastic collision...", options: ["only momentum is conserved", "only kinetic energy is conserved", "both momentum and kinetic energy are conserved", "neither is conserved"], correct: 2 },
+  { id: "q15", cat: "Momentum", q: "Airbags reduce injury mainly by...", options: ["reducing the impulse", "increasing the time the momentum change takes, lowering the force", "increasing the force applied", "reducing the person's mass"], correct: 1 },
+  // Energy
+  { id: "q16", cat: "Energy", q: "W = Fs cosθ. If the force is perpendicular to the displacement (θ = 90°), the work done is...", options: ["Maximum", "Equal to Fs", "Zero", "Negative and maximum"], correct: 2 },
+  { id: "q17", cat: "Energy", q: "The work-energy theorem states that net work done on an object equals...", options: ["its change in momentum", "its change in kinetic energy", "its change in gravitational PE", "its power output"], correct: 1 },
+  { id: "q18", cat: "Energy", q: "How much work does gravity do on a satellite in a stable circular orbit, per full orbit?", options: ["A large positive amount", "A large negative amount", "Zero", "Depends on satellite mass"], correct: 2 },
+  { id: "q19", cat: "Energy", q: "Ep = mgh calculates...", options: ["kinetic energy", "elastic potential energy", "gravitational potential energy", "work done against friction"], correct: 2 },
+  { id: "q20", cat: "Energy", q: "P = Fv is most useful for calculating power when...", options: ["force and displacement are perpendicular", "an object moves at constant velocity with a known driving force", "mass and acceleration are known", "calculating impulse"], correct: 1 },
+  // Circular
+  { id: "q21", cat: "Circular", q: "Centripetal acceleration always points...", options: ["outward, away from the centre", "toward the centre of the circle", "tangent to the circle", "in the direction of velocity"], correct: 1 },
+  { id: "q22", cat: "Circular", q: "At the TOP of a vertical circular loop, which forces point toward the centre?", options: ["Only the normal/tension force", "Only gravity", "Both gravity and the normal/tension force", "Neither"], correct: 2 },
+  { id: "q23", cat: "Circular", q: "The minimum speed at the top of a vertical loop occurs when...", options: ["the normal force is at a maximum", "the normal force is zero and gravity alone provides centripetal force", "friction is at a maximum", "the object's mass is zero"], correct: 1 },
+  { id: "q24", cat: "Circular", q: "The design-speed equation for a frictionless banked curve is...", options: ["tanθ = v²/(rg)", "tanθ = rg/v²", "sinθ = v²/(rg)", "v = ωr"], correct: 0 },
+  { id: "q25", cat: "Circular", q: "Angular velocity ω relates to period T by...", options: ["ω = T/2π", "ω = 2π/T", "ω = 2πT", "ω = T²"], correct: 1 },
+];
+const QUIZ_CATEGORIES = ["All", "Kinematics", "Dynamics", "Momentum", "Energy", "Circular"];
+const QUIZ_INTERVALS = [1, 3, 7, 16, 35]; // days — reached after the 2nd correct answer
+const ANSWER_STYLES = [
+  { shape: "▲", grad: "from-rose-500 to-red-600", ring: "border-rose-500", bg: "bg-rose-500/10" },
+  { shape: "◆", grad: "from-blue-500 to-cyan-600", ring: "border-blue-500", bg: "bg-blue-500/10" },
+  { shape: "●", grad: "from-amber-500 to-yellow-600", ring: "border-amber-500", bg: "bg-amber-500/10" },
+  { shape: "■", grad: "from-emerald-500 to-green-600", ring: "border-emerald-500", bg: "bg-emerald-500/10" },
+];
+
+function quizToday() { return new Date().toISOString().split("T")[0]; }
+function quizAddDays(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split("T")[0];
+}
+function quizIsDue(srs, id) {
+  const s = srs[id];
+  if (!s || s.box === -1) return true; // still in the "learn it twice" phase
+  return s.due <= quizToday();
+}
+function shuffleArr(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function QuizView({ dark }) {
+  const [srs, setSrs] = useLocalStorage("quiz_srs_v1", {});
+  const [activeCat, setActiveCat] = useState("All");
+  const [queue, setQueue] = useState([]);
+  const [current, setCurrent] = useState(undefined); // undefined = not started, null = queue empty
+  const [selected, setSelected] = useState(null);
+  const [revealed, setRevealed] = useState(false);
+  const [session, setSession] = useState({ correct: 0, total: 0 });
+
+  function buildQueue(cat) {
+    const pool = QUIZ_QUESTIONS.filter(q => (cat === "All" || q.cat === cat) && quizIsDue(srs, q.id));
+    const shuffled = shuffleArr(pool.map(q => q.id));
+    setQueue(shuffled);
+    drawNext(shuffled);
+  }
+
+  function drawNext(q) {
+    if (!q || q.length === 0) { setCurrent(null); return; }
+    const id = q[0];
+    setQueue(q.slice(1));
+    setCurrent(QUIZ_QUESTIONS.find(x => x.id === id));
+    setSelected(null);
+    setRevealed(false);
+  }
+
+  useEffect(() => { buildQueue(activeCat); /* eslint-disable-next-line */ }, [activeCat]);
+
+  function pick(idx) {
+    if (revealed || !current) return;
+    setSelected(idx);
+    setRevealed(true);
+    const correct = idx === current.correct;
+    setSession(s => ({ correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }));
+    setSrs(prev => {
+      const cur = prev[current.id] || { learn: 0, box: -1, due: quizToday() };
+      let next;
+      if (!correct) {
+        next = { learn: 0, box: -1, due: quizToday() };
+      } else if (cur.box === -1) {
+        const learn = cur.learn + 1;
+        next = learn >= 2
+          ? { learn, box: 0, due: quizAddDays(QUIZ_INTERVALS[0]) }
+          : { learn, box: -1, due: quizToday() };
+      } else {
+        const box = Math.min(cur.box + 1, QUIZ_INTERVALS.length - 1);
+        next = { learn: cur.learn, box, due: quizAddDays(QUIZ_INTERVALS[box]) };
+      }
+      return { ...prev, [current.id]: next };
+    });
+  }
+
+  function continueNext() { drawNext(queue); }
+
+  useEffect(() => {
+    function onKey(e) {
+      if (!current) return;
+      if (!revealed && ["1", "2", "3", "4"].includes(e.key)) pick(Number(e.key) - 1);
+      if (revealed && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); continueNext(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    /* eslint-disable-next-line */
+  }, [current, revealed, queue]);
+
+  const dueCount = (current ? 1 : 0) + queue.length;
+  const scopeCards = QUIZ_QUESTIONS.filter(q => activeCat === "All" || q.cat === activeCat);
+  const masteredCount = scopeCards.filter(q => (srs[q.id]?.box ?? -1) === QUIZ_INTERVALS.length - 1).length;
+
+  return (
+    <div className="animate-fadeUp">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h2 className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>Quiz</h2>
+          <p className={`text-sm mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Answer right twice in a row and a question goes on the 1 → 3 → 7 → 16 → 35 day review schedule</p>
+        </div>
+        <div className="text-right">
+          <div className={`text-2xl font-bold font-mono ${dark ? "text-blue-400" : "text-blue-600"}`}>{dueCount}</div>
+          <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>due now</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {QUIZ_CATEGORIES.map(cat => (
+          <button key={cat} onClick={() => setActiveCat(cat)}
+            className={`text-xs font-medium px-3 py-1.5 rounded-full border btn-magnetic transition-all ${activeCat === cat
+              ? (dark ? "bg-blue-500/20 text-blue-300 border-blue-500/40" : "bg-blue-100 text-blue-700 border-blue-300")
+              : (dark ? "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500" : "bg-slate-100 text-slate-500 border-slate-200")}`}>
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {current === undefined && (
+        <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} p-10 text-center`}>
+          <div className={`text-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>Loading…</div>
+        </div>
+      )}
+
+      {current === null && (
+        <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} p-10 text-center animate-fadeUp`}>
+          <div className="text-4xl mb-3">✓</div>
+          <h3 className={`text-lg font-semibold mb-1 ${dark ? "text-slate-200" : "text-slate-700"}`}>Nothing due right now</h3>
+          <p className={`text-sm max-w-xs mx-auto ${dark ? "text-slate-500" : "text-slate-400"}`}>Switch category, or come back later — the schedule works best when it's actually spaced out.</p>
+          {session.total > 0 && (
+            <p className={`text-xs mt-4 font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>This session: {session.correct}/{session.total} correct</p>
+          )}
+        </div>
+      )}
+
+      {current && (
+        <div>
+          <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} border ${dark ? "border-slate-800" : "border-slate-200"} p-6 mb-4 animate-scaleIn`}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${dark ? "bg-blue-500/15 text-blue-300 border-blue-500/30" : "bg-blue-100 text-blue-700 border-blue-300"}`}>⚛ {current.cat}</span>
+            </div>
+            <div className={`text-lg leading-snug ${dark ? "text-slate-100" : "text-slate-800"}`}>{current.q}</div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {current.options.map((opt, idx) => {
+              const style = ANSWER_STYLES[idx];
+              const isCorrectOpt = idx === current.correct;
+              const isPicked = idx === selected;
+              let cls = `${dark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`;
+              if (revealed) {
+                if (isCorrectOpt) cls = `${style.bg} ${style.ring} text-current border-2`;
+                else if (isPicked) cls = `bg-rose-500/10 border-rose-500 border-2 text-current`;
+                else cls = `${dark ? "bg-slate-800/50 border-slate-800 text-slate-500" : "bg-slate-50 border-slate-100 text-slate-400"}`;
+              }
+              return (
+                <button key={idx} disabled={revealed} onClick={() => pick(idx)}
+                  className={`flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border btn-magnetic transition-all duration-150 ${cls}`}>
+                  <span className={`w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-gradient-to-br ${style.grad}`}>{style.shape}</span>
+                  <span className="text-sm font-medium flex-1">{opt}</span>
+                  {revealed && isCorrectOpt && <span className="text-emerald-400">✓</span>}
+                  {revealed && isPicked && !isCorrectOpt && <span className="text-rose-400">✕</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {revealed && (
+            <div className="flex items-center justify-between mt-4 animate-fadeUp">
+              <span className={`text-xs font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>
+                {selected === current.correct ? "Correct" : "Not quite"} · session {session.correct}/{session.total}
+              </span>
+              <button onClick={continueNext} className="px-5 py-2 rounded-xl text-sm font-medium text-white btn-magnetic bg-gradient-to-r from-blue-500 to-cyan-600 shadow-lg">
+                Next →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className={`flex items-center justify-between mt-6 pt-4 border-t text-xs font-mono ${dark ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-400"}`}>
+        <span>mastered: <span className={dark ? "text-emerald-400" : "text-emerald-600"}>{masteredCount}</span>/{scopeCards.length}</span>
+        <button onClick={() => { if (confirm("Reset all quiz progress?")) { setSrs({}); buildQueue(activeCat); } }}
+          className={`px-3 py-1 rounded-lg ${dark ? "hover:bg-slate-800" : "hover:bg-slate-100"}`}>reset progress</button>
       </div>
     </div>
   );
@@ -2411,6 +2638,7 @@ export default function App() {
     { id: "tasks", label: "Tasks", icon: "☑" },
     { id: "calendar", label: "Calendar", icon: "📅" },
     { id: "focus", label: "Focus", icon: "⏱" },
+    { id: "quiz", label: "Quiz", icon: "⚡" },
     { id: "insights", label: "Insights", icon: "📊" },
   ];
 
@@ -2628,6 +2856,7 @@ export default function App() {
                 </div>
               )}
               {view === "focus" && <FocusView dark={dark} tasks={tasks} />}
+              {view === "quiz" && <QuizView dark={dark} />}
               {view === "insights" && <InsightsView tasks={tasks} dark={dark} />}
             </div>
           </main>

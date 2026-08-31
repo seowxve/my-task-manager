@@ -1246,228 +1246,503 @@ function FocusView({ dark, tasks }) {
   );
 }
 
-// ─── QUIZ (spaced-repetition, 4-option recall) ─────────────────────────────────
-// Question bank — NCEA L3 Physics, Mechanics. Add more banks by giving each
-// question a different `subject`/`cat` and extending QUIZ_CATEGORIES.
+// ─── QUIZ (spaced-repetition, hierarchical Subject → Standard → Topic) ─────────
+// Question bank pulled from your Anki decks (Chemistry, Physics) plus a hand-built
+// Digital Technology / AS91908 Big Data set. `type` is "mcq" (4 Kahoot-style
+// options) or "flashcard" (flip to reveal, self-grade).
 const QUIZ_QUESTIONS = [
-  // Kinematics
-  { id: "q1", cat: "Kinematics", q: "Which equation should you reach for when you don't know the time t?", options: ["v = u + at", "s = ut + ½at²", "v² = u² + 2as", "s = ½(u + v)t"], correct: 2 },
-  { id: "q2", cat: "Kinematics", q: "On a velocity-time graph, what does the gradient represent?", options: ["Displacement", "Acceleration", "Momentum", "Jerk"], correct: 1 },
-  { id: "q3", cat: "Kinematics", q: "On a velocity-time graph, what does the area under the line represent?", options: ["Acceleration", "Average speed", "Displacement", "Force"], correct: 2 },
-  { id: "q4", cat: "Kinematics", q: "At the very top of a projectile's arc (launched at an angle), which is true?", options: ["Both velocity components are zero", "Vertical velocity is zero, horizontal is unchanged", "Horizontal velocity is zero, vertical is unchanged", "Acceleration is zero"], correct: 1 },
-  { id: "q5", cat: "Kinematics", q: "What determines the total time of flight of a projectile that lands at the same height it launched from?", options: ["Horizontal velocity only", "Vertical motion only", "Both equally", "Launch angle only, independent of speed"], correct: 1 },
-  // Dynamics
-  { id: "q6", cat: "Dynamics", q: "Newton's First Law says an object keeps constant velocity unless...", options: ["gravity acts on it", "a net force acts on it", "its mass changes", "friction is present"], correct: 1 },
-  { id: "q7", cat: "Dynamics", q: "F = ma is a statement of which law?", options: ["Newton's 1st Law", "Newton's 2nd Law", "Newton's 3rd Law", "Conservation of momentum"], correct: 1 },
-  { id: "q8", cat: "Dynamics", q: "Which pair is a genuine Newton's Third Law pair?", options: ["Normal force on a book and the book's weight", "A rocket pushing exhaust down, and the exhaust pushing the rocket up", "Friction and normal force on a sliding block", "Tension in a rope and the weight it supports"], correct: 1 },
-  { id: "q9", cat: "Dynamics", q: "Centripetal force is best described as...", options: ["a separate outward force in circular motion", "the net (resultant) force toward the centre, provided by tension/gravity/friction", "a force that only exists without friction", "an extra force added to gravity"], correct: 1 },
-  { id: "q10", cat: "Dynamics", q: "On a frictionless incline at angle θ, the weight component parallel to the slope is...", options: ["mg cosθ", "mg sinθ", "mg tanθ", "mg"], correct: 1 },
-  // Momentum
-  { id: "q11", cat: "Momentum", q: "Momentum is defined as...", options: ["mass × velocity", "mass × acceleration", "force × time", "½ × mass × velocity²"], correct: 0 },
-  { id: "q12", cat: "Momentum", q: "Impulse is equal to...", options: ["change in kinetic energy", "change in momentum", "force × distance", "mass × displacement"], correct: 1 },
-  { id: "q13", cat: "Momentum", q: "In an isolated system, total momentum is conserved...", options: ["only in elastic collisions", "only in inelastic collisions", "in both elastic and inelastic collisions", "only if kinetic energy is also conserved"], correct: 2 },
-  { id: "q14", cat: "Momentum", q: "In a perfectly elastic collision...", options: ["only momentum is conserved", "only kinetic energy is conserved", "both momentum and kinetic energy are conserved", "neither is conserved"], correct: 2 },
-  { id: "q15", cat: "Momentum", q: "Airbags reduce injury mainly by...", options: ["reducing the impulse", "increasing the time the momentum change takes, lowering the force", "increasing the force applied", "reducing the person's mass"], correct: 1 },
-  // Energy
-  { id: "q16", cat: "Energy", q: "W = Fs cosθ. If the force is perpendicular to the displacement (θ = 90°), the work done is...", options: ["Maximum", "Equal to Fs", "Zero", "Negative and maximum"], correct: 2 },
-  { id: "q17", cat: "Energy", q: "The work-energy theorem states that net work done on an object equals...", options: ["its change in momentum", "its change in kinetic energy", "its change in gravitational PE", "its power output"], correct: 1 },
-  { id: "q18", cat: "Energy", q: "How much work does gravity do on a satellite in a stable circular orbit, per full orbit?", options: ["A large positive amount", "A large negative amount", "Zero", "Depends on satellite mass"], correct: 2 },
-  { id: "q19", cat: "Energy", q: "Ep = mgh calculates...", options: ["kinetic energy", "elastic potential energy", "gravitational potential energy", "work done against friction"], correct: 2 },
-  { id: "q20", cat: "Energy", q: "P = Fv is most useful for calculating power when...", options: ["force and displacement are perpendicular", "an object moves at constant velocity with a known driving force", "mass and acceleration are known", "calculating impulse"], correct: 1 },
-  // Circular
-  { id: "q21", cat: "Circular", q: "Centripetal acceleration always points...", options: ["outward, away from the centre", "toward the centre of the circle", "tangent to the circle", "in the direction of velocity"], correct: 1 },
-  { id: "q22", cat: "Circular", q: "At the TOP of a vertical circular loop, which forces point toward the centre?", options: ["Only the normal/tension force", "Only gravity", "Both gravity and the normal/tension force", "Neither"], correct: 2 },
-  { id: "q23", cat: "Circular", q: "The minimum speed at the top of a vertical loop occurs when...", options: ["the normal force is at a maximum", "the normal force is zero and gravity alone provides centripetal force", "friction is at a maximum", "the object's mass is zero"], correct: 1 },
-  { id: "q24", cat: "Circular", q: "The design-speed equation for a frictionless banked curve is...", options: ["tanθ = v²/(rg)", "tanθ = rg/v²", "sinθ = v²/(rg)", "v = ωr"], correct: 0 },
-  { id: "q25", cat: "Circular", q: "Angular velocity ω relates to period T by...", options: ["ω = T/2π", "ω = 2π/T", "ω = 2πT", "ω = T²"], correct: 1 },
+  { id: "b1", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "mcq", q: "What actually makes a dataset count as \"Big Data\", according to the definitive comparison?", options: ["Simply having a lot of data", "Being stored in a spreadsheet", "Being defined by characteristics like scale, format and processing needs, not just size", "Being owned by a large company"], correct: 2 },
+  { id: "b2", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "mcq", q: "What are the original 3 Vs of Big Data?", options: ["Volume, Velocity, Variety", "Volume, Veracity, Value", "Velocity, Variety, Value", "Volume, Variety, Visualisation"], correct: 0 },
+  { id: "b3", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "mcq", q: "\"Velocity\" in the 3 Vs refers to...", options: ["The sheer scale of data", "The speed at which data is generated and needs processing", "How many different formats data comes in", "How trustworthy the data is"], correct: 1 },
+  { id: "b4", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "flashcard", q: "Explain the difference between data, information, and knowledge in the data refinement pipeline.", a: "Data is raw, unorganised facts or observations (numbers, words, sensor readings). Information is data that has been organised, processed and analysed so it has meaning. Knowledge is information that has been connected and structured further, enabling better decisions." },
+  { id: "b5", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "mcq", q: "Which of these is an example of organisation-generated data (rather than human- or machine-generated)?", options: ["A social media post", "A hospital's patient database", "A GPS reading from a smartwatch", "A traffic camera image"], correct: 1 },
+  { id: "b6", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "1. Introduction to Big Data", type: "flashcard", q: "Name three reasons organisations use Big Data (from healthcare to transport).", a: "Examples include: prediction, fraud detection, personalisation, healthcare improvements, scientific research, business intelligence, and transport optimisation." },
+  { id: "b7", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "mcq", q: "Which data type is organised systematically into rows and columns and fits neatly into predefined models?", options: ["Structured data", "Semi-structured data", "Unstructured data", "Metadata"], correct: 0 },
+  { id: "b8", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "mcq", q: "Roughly what proportion of all generated data is unstructured?", options: ["About 20%", "About 50%", "About 80%", "Almost none"], correct: 2 },
+  { id: "b9", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "mcq", q: "An email is a classic example of which data type, and why?", options: ["Structured — because it has a fixed table format", "Semi-structured — structured headers (To/From/Date) but an unstructured body", "Unstructured — because it contains natural language", "Structured — because it's stored in a database"], correct: 1 },
+  { id: "b10", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "mcq", q: "Why do traditional relational databases struggle with Big Data?", options: ["They can only scale vertically (upgrade one expensive server) and can't handle rapid velocity or unstructured variety", "They are too cheap to maintain", "They automatically distribute work across thousands of servers", "They only work with unstructured data"], correct: 0 },
+  { id: "b11", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "flashcard", q: "Explain what \"Garbage In, Garbage Out\" (GIGO) means in the context of data veracity and bias.", a: "If biased or poor-quality data is fed into a machine learning algorithm, the algorithm learns from and amplifies those flaws, producing flawed or unfair decisions. The output can never be more trustworthy than the input data." },
+  { id: "b12", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "2. Understanding Big Data", type: "mcq", q: "Sampling bias occurs when...", options: ["Data reflects past societal prejudices", "Data does not represent the whole population", "An algorithm amplifies flawed data", "Data is inconsistent across systems"], correct: 1 },
+  { id: "b13", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "3. Collecting Big Data", type: "mcq", q: "What is the key difference between active and passive data collection?", options: ["Active is always more accurate; passive is always biased", "Active means the user intentionally and consciously provides data; passive means data is collected continuously in the background without user effort", "Passive data collection requires user consent, active does not", "There is no real difference"], correct: 1 },
+  { id: "b14", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "3. Collecting Big Data", type: "mcq", q: "Which of these is an example of PASSIVE data collection?", options: ["Filling in a survey", "Cookies and GPS tracking running in the background", "Registering an account", "Answering a customer feedback form"], correct: 1 },
+  { id: "b15", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "3. Collecting Big Data", type: "mcq", q: "What is metadata?", options: ["Data that has been deleted", "\"Data about data\" — context like date, location, device info, and file specs", "Only data collected from social media", "Backup data stored in the cloud"], correct: 1 },
+  { id: "b16", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "3. Collecting Big Data", type: "flashcard", q: "List the six stages of the Big Data pipeline in order.", a: "Sources → Collection → Storage → Processing → Analysis → Decision Making." },
+  { id: "b17", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "3. Collecting Big Data", type: "mcq", q: "\"Data minimisation\" as a responsible-collection principle means...", options: ["Collecting as much data as possible in case it's useful later", "Only collecting what is genuinely needed for the stated task", "Minimising the number of people who can access data", "Storing data for the shortest possible time regardless of purpose"], correct: 1 },
+  { id: "b18", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "4. Storing & Processing Big Data", type: "mcq", q: "What is the key difference between how traditional databases and distributed systems scale?", options: ["Traditional databases scale horizontally; distributed systems scale vertically", "Traditional databases scale vertically (upgrade one expensive machine); distributed systems scale horizontally (add more machines)", "Both scale the same way", "Neither can scale beyond a fixed limit"], correct: 1 },
+  { id: "b19", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "4. Storing & Processing Big Data", type: "mcq", q: "What does Hadoop's HDFS do with a massive file before storing it?", options: ["Deletes duplicate sections to save space", "Chunks it into smaller blocks and distributes/replicates those blocks across many servers", "Converts it into a single compressed file on one server", "Encrypts it and stores it on the user's own device"], correct: 1 },
+  { id: "b20", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "4. Storing & Processing Big Data", type: "mcq", q: "Why does Hadoop replicate each data block multiple times (usually 3x) across different servers?", options: ["To make files load faster for a single user", "For fault tolerance — if one server fails, copies exist elsewhere so no data is lost", "To reduce total storage used", "Because replication is required by law"], correct: 1 },
+  { id: "b21", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "4. Storing & Processing Big Data", type: "mcq", q: "NoSQL databases like MongoDB and Cassandra mainly solve which of the Vs?", options: ["Volume only", "Variety — flexible storage for semi-structured/unstructured data instead of rigid rows and columns", "Veracity only", "Value only"], correct: 1 },
+  { id: "b22", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "4. Storing & Processing Big Data", type: "flashcard", q: "Explain fault tolerance in a distributed system, including the role of replication and redundancy.", a: "Fault tolerance is a system's ability to keep operating without interruption when one or more components fail. It relies on replication (multiple simultaneous copies of data), redundancy (extra hardware on standby), and automatic recovery (the system detects a failed node and redirects workloads to healthy servers) — enabling horizontal scaling with zero downtime." },
+  { id: "b23", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "5. The Big Data Ecosystem", type: "mcq", q: "In the Lambda vs Kappa architecture comparison, what is the main trade-off of Lambda architecture?", options: ["It's simpler but less accurate", "It offers accuracy and speed but requires maintaining two separate codebases (batch and speed layers)", "It cannot process historical data at all", "It only works for small datasets"], correct: 1 },
+  { id: "b24", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "5. The Big Data Ecosystem", type: "mcq", q: "What is the key benefit of Kappa architecture over Lambda?", options: ["It uses more hardware for extra reliability", "It simplifies operations to a single streaming pipeline instead of maintaining two separate systems", "It removes the need for any processing at all", "It only works with structured data"], correct: 1 },
+  { id: "b25", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "5. The Big Data Ecosystem", type: "mcq", q: "Apache Spark's main advantage over traditional Hadoop MapReduce is that it...", options: ["Is disk-based and therefore more reliable", "Processes data in-memory, making it up to 100x faster for large-scale analytics", "Only works for batch processing, never real-time", "Doesn't require any servers"], correct: 1 },
+  { id: "b26", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "5. The Big Data Ecosystem", type: "mcq", q: "What's the difference between batch processing and real-time (stream) processing?", options: ["Batch analyses historical data all at once (e.g. overnight reports); real-time analyses data immediately as it arrives (e.g. live fraud detection)", "Batch is always faster than real-time", "Real-time can only be used for video data", "There is no meaningful difference"], correct: 0 },
+  { id: "b27", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "5. The Big Data Ecosystem", type: "flashcard", q: "Using Netflix as an example, explain why a single traditional database can't power a global streaming service, and what solution is used instead.", a: "A single database can't handle millions of simultaneous global users or process unstructured behavioural data (watch history, pauses, search queries) fast enough to update recommendations. Netflix instead uses cloud data centres to store data in a distributed way and Apache Spark (managed via Databricks) for fast, in-memory parallel processing, enabling real-time personalised homepages." },
+  { id: "b28", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Which type of analytics answers the question \"What happened?\"", options: ["Descriptive", "Diagnostic", "Predictive", "Prescriptive"], correct: 0 },
+  { id: "b29", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Which type of analytics answers \"Why did it happen?\"", options: ["Descriptive", "Diagnostic", "Predictive", "Prescriptive"], correct: 1 },
+  { id: "b30", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Netflix calculating a % Match Score to estimate whether you'll like a movie is an example of which analytics type?", options: ["Descriptive", "Diagnostic", "Predictive", "Prescriptive"], correct: 2 },
+  { id: "b31", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Netflix swapping a thumbnail image to nudge you into pressing play is an example of which analytics type, which answers \"What should we do?\"", options: ["Descriptive", "Diagnostic", "Predictive", "Prescriptive"], correct: 3 },
+  { id: "b32", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Which analytical method finds hidden groupings in unlabelled data, such as customer segments?", options: ["Classification", "Clustering", "Regression", "Pattern recognition"], correct: 1 },
+  { id: "b33", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "mcq", q: "Machine Learning is best described as...", options: ["A synonym for Big Data", "A branch of AI that builds algorithms to learn patterns directly from data rather than being explicitly programmed", "A type of database", "The same thing as data visualisation"], correct: 1 },
+  { id: "b34", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "6. Analysing Big Data", type: "flashcard", q: "Outline the machine learning cycle from collecting data through to making predictions.", a: "Collect Data (gather historical examples) → Prepare Data (clean and structure it) → Train Model (feed data to the algorithm to find patterns) → Test Model (check accuracy against new, unseen data) → Make Predictions (deploy the model to support decisions) — and the cycle repeats, improving the model over time." },
+  { id: "b35", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "Which of these is NOT one of the four pillars of data quality (veracity)?", options: ["Accuracy", "Completeness", "Consistency", "Popularity"], correct: 3 },
+  { id: "b36", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "An AI hiring tool that downgrades female CVs because historical tech hires in its training data were mostly male is an example of...", options: ["Sampling bias", "Historical bias", "Automation bias", "Dual valence (measurement) bias"], correct: 1 },
+  { id: "b37", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "Using a postcode to set insurance rates, which inadvertently discriminates by socioeconomic status, is an example of...", options: ["Sampling bias", "Historical bias", "Dual valence (measurement) bias — a neutral-looking variable acting as a hidden proxy", "Automation bias"], correct: 2 },
+  { id: "b38", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "A doctor blindly trusting a flawed AI diagnosis over their own correct clinical judgement is an example of...", options: ["Sampling bias", "Historical bias", "Automation bias — humans overestimating the validity of an automated system", "Dual valence bias"], correct: 2 },
+  { id: "b39", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "What is the key difference between anonymisation and pseudonymisation?", options: ["They are exactly the same thing", "Anonymisation permanently removes identifiers and cannot be reversed; pseudonymisation replaces identifiers with codes that CAN be reversed with a secure key", "Pseudonymisation is illegal; anonymisation is required by law", "Anonymisation only applies to images"], correct: 1 },
+  { id: "b40", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "What is the key difference between security and privacy in a data context?", options: ["They mean exactly the same thing", "Security protects data from hackers/breaches; privacy is about collecting and using data ethically with user consent", "Privacy only applies to governments", "Security is about encryption only, privacy is about backups only"], correct: 1 },
+  { id: "b41", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "flashcard", q: "Trace the 'domino effect' from poor data quality to loss of public trust, in order.", a: "Poor data quality → algorithmic bias (the ML engine ingests and amplifies historical prejudices) → flawed AI predictions (confident but incorrect outputs) → automation bias (humans blindly trust and act on the flawed output) → ethical violations (individuals treated unfairly or denied services) → loss of public trust (reputational collapse, user abandonment, regulatory fines)." },
+  { id: "b42", subject: "digitaltech", standard: "AS91908 – Big Data", topic: "7. Data Quality, Bias, Privacy & Ethics", type: "mcq", q: "\"Just because an organisation technically CAN collect certain data or build a specific AI, does not mean they ethically SHOULD.\" This idea sits at the intersection of which four values in Responsible AI?", options: ["Speed, cost, scale, and volume", "Fairness, transparency, accountability, and AI capability", "Velocity, variety, veracity, and value", "Encryption, access control, authentication, and monitoring"], correct: 1 },
+  { id: "a1", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "mcq", q: "The distance from the nucleus to the electrons in the highest occupied energy level", options: ["Shielding", "Electronegativity", "First ionisation energy", "Atomic Radius"], correct: 3 },
+  { id: "a2", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "mcq", q: "The strength of the attraction between a nucleus and the bonding electrons on the highest occupied energy level", options: ["First ionisation energy", "Atomic Radius", "Electronegativity", "Shielding"], correct: 2 },
+  { id: "a3", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "mcq", q: "The amount of energy required to remove one electron from the highest occupied energy from one mole of gaseous atoms", options: ["Shielding", "Atomic Radius", "Electronegativity", "First ionisation energy"], correct: 3 },
+  { id: "a4", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "mcq", q: "The reduction of the attractive force of the nucleus on outer energy level by inner energy levels", options: ["Electronegativity", "Shielding", "First ionisation energy", "Atomic Radius"], correct: 1 },
+  { id: "a5", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Moving along a period...", a: "Increases the amount of protons in the nucleus, increasing nuclear attraction" },
+  { id: "a6", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Moving down a group...", a: "Increases the amount of energy levels" },
+  { id: "a7", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Going down a group, valence electrons are added to ▁▁▁▁▁ with ▁▁▁▁▁. Although the number of ▁▁▁▁▁ increases down a group, this attraction is offset by the ▁▁▁▁▁. Therefore the ▁▁▁▁▁ between the ▁▁▁▁▁ and its ▁▁▁▁▁ decreases, and the first ionisation energy ▁▁▁▁▁.", a: "Going down a group, valence electrons are added to 『an energy level further from the nucleus』 with 『increased shielding from inner energy levels』. Although the number of 『protons』 increases down a group, this attraction is offset by the 『increasing distance between the nucleus and the valence electrons』. Therefore the 『electrostatic attraction』 between the 『positive nucleus』 and its 『valence electrons』 decreases, and the first ionisation energy 『decreases』." },
+  { id: "a8", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "The ▁▁▁▁▁ increases across a period and the ▁▁▁▁▁ are in the same ▁▁▁▁▁ with ▁▁▁▁▁. Therefore the electrostatic attraction between the posistive nucleus and the valence electrons increases and more energy is required to remove the ▁▁▁▁▁, so ▁▁▁▁▁ increases.", a: "The 『number of protons』 increases across a period and the 『valence electrons』 are in the same 『energy level』 with 『the same shielding from inner energy levels』. Therefore the electrostatic attraction between the posistive nucleus and the valence electrons increases and more energy is required to remove the 『outermost electron』, so 『first ionisation energy』 increases." },
+  { id: "a9", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "The number of ▁▁▁▁▁ increases across a period and the valence electrons are in the same ▁▁▁▁▁ with the same ▁▁▁▁▁ so the valence electrons are ▁▁▁▁▁. Therefore the ▁▁▁▁▁ between the positive ▁▁▁▁▁ and the ▁▁▁▁▁ and the ▁▁▁▁▁ decreases across a period.", a: "The number of 『protons』 increases across a period and the valence electrons are in the same 『energy level』 with the same 『shielding from inner energy levels』 so the valence electrons are 『pulled closer to the nucleus』. Therefore the 『electrostatic attraction』 between the positive 『nucleus』 and the 『valence electrons increases』 and the 『atomic radius』 decreases across a period." },
+  { id: "a10", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Going down a group, ▁▁▁▁▁ are added to an energy level ▁▁▁▁▁ with increased ▁▁▁▁▁ from ▁▁▁▁▁. Although the number of ▁▁▁▁▁ increases down a group, the ▁▁▁▁▁ is offset by the increasing distance between the ▁▁▁▁▁ and the ▁▁▁▁▁. Therefore, the ▁▁▁▁▁ between the ▁▁▁▁▁ and its ▁▁▁▁▁ decreases, so the ▁▁▁▁▁ increases.", a: "Going down a group, 『valence electrons』 are added to an energy level 『further from the nucleus』 with increased 『shielding』 from 『inner energy levels』. Although the number of 『protons』 increases down a group, the 『increased attraction』 is offset by the increasing distance between the 『nucleus』 and the 『valence electrons』. Therefore, the 『electrostatic attraction』 between the 『positive nucleus』 and its 『valence electrons』 decreases, so the 『atomic radius』 increases." },
+  { id: "a11", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "6 areas of electron density, all bond pairs", a: "Octahedral" },
+  { id: "a12", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "6 regions of electron density, one lone pair", a: "Square pyramid" },
+  { id: "a13", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "6 regions of electron density, 2 lone pairs", a: "Square planar" },
+  { id: "a14", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "5 regions of electron density, all bonding pairs", a: "Trigonal bipyramid" },
+  { id: "a15", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "5 regions of electron density, 1 lone pair", a: "See-saw" },
+  { id: "a16", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "5 regions of electron density, 2 lone pairs", a: "T-shaped" },
+  { id: "a17", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "5 regions of electron density, 3 lone pairs", a: "Linear" },
+  { id: "a18", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "There are _ regions of ▁▁▁▁▁ about the central _ atom. These regions repel to ▁▁▁▁▁ and therefore ▁▁▁▁▁ and assuming a _ arrangement. There are _ ▁▁▁▁▁ and _ ▁▁▁▁▁. As the shape of _ only takes ▁▁▁▁▁ into account, the final shape of _ will be _.", a: "There are _ regions of 『electron density』 about the central _ atom. These regions repel to 『maximum separation』 and therefore 『minimise repulsion』 and assuming a _ arrangement. There are _ 『bonding pairs』 and _ 『lone pairs』. As the shape of _ only takes 『bonding pairs』 into account, the final shape of _ will be _." },
+  { id: "a19", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Weakest intermolecular force", a: "Temporary dipole-dipole attractions" },
+  { id: "a20", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Strongest intermolecular force", a: "Hydrogen bonding" },
+  { id: "a21", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Medium intermolecular force", a: "Permanent dipole-dipole attractions" },
+  { id: "a22", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Polar bond", a: "Covalent bond with uneven sharing of electrons due to electronegativity difference" },
+  { id: "a23", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "There is an ▁▁▁▁▁ between _ and _ so the _-_ bonds are ▁▁▁▁▁. Due to the _ shape, these dipoles are arranged (a)symmetrically. Therefore the dipoles do(n't) cancel, so _ is (non)polar", a: "There is an 『electronegativity difference』 between _ and _ so the _-_ bonds are 『polar covalent』. Due to the _ shape, these dipoles are arranged (a)symmetrically. Therefore the dipoles do(n't) cancel, so _ is (non)polar" },
+  { id: "a24", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Enthalpy of formation", a: "Energy change when 1 mole of a substance is produced from its pure constituent elements in their most stable elemental states under standard conditions" },
+  { id: "a25", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Of the three common states of matter, ▁▁▁▁▁ have the lowest energy, ▁▁▁▁▁ have more energy, and ▁▁▁▁▁ have the most energy.", a: "Of the three common states of matter, 『solids』 have the lowest energy, 『liquids』 have more energy, and 『gases』 have the most energy." },
+  { id: "a26", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "During a sloped section of a heating curve, energy is primarily used to increase the ▁▁▁▁▁ of the particles. Increasing kinetic energy causes the ▁▁▁▁▁ of the substance to increase.", a: "During a sloped section of a heating curve, energy is primarily used to increase the 『kinetic energy』 of the particles. Increasing kinetic energy causes the 『temperature』 of the substance to increase." },
+  { id: "a27", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "The ▁▁▁▁▁ of a heating curve represent a {{c2::change of state}}. Here, the energy supplied is used to ▁▁▁▁▁ rather than increase the particles' kinetic energy. So the temperature ▁▁▁▁▁ because the particles' ▁▁▁▁▁ does not increase.", a: "The 『plateaued sections』 of a heating curve represent a {{c2::change of state}}. Here, the energy supplied is used to 『overcome/intermolecular attractions』 rather than increase the particles' kinetic energy. So the temperature 『remains constant』 because the particles' 『average kinetic energy』 does not increase." },
+  { id: "a28", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "What does the temperature of a substance represent at the particle level?", a: "The average kinetic energy of its particles" },
+  { id: "a29", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Why does temperature increase during the sloped sections?", a: "The particles are absorbing the heat energy to increase their own kinetic energy" },
+  { id: "a30", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Why does temperature remain constant during a phase change?", a: "Energy is being absorbed to overcome intermolecular attractions rather than increase kinetic energy." },
+  { id: "a31", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Entropy describes the ▁▁▁▁▁ in a system. A reaction with a ▁▁▁▁▁ is spontaneous.", a: "Entropy describes the 『dispersal of matter and energy』 in a system. A reaction with a 『positive total entropy change』 is spontaneous." },
+  { id: "a32", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Greater entropy corresponds to greater ▁▁▁▁▁ of matter and energy. Increasing the number of product moles compared with reactant moles generally increases the ▁▁▁▁▁. A reaction that produces substances in a ▁▁▁▁▁ increases entropy.", a: "Greater entropy corresponds to greater 『dispersal』 of matter and energy. Increasing the number of product moles compared with reactant moles generally increases the 『dispersal of matter and energy』. A reaction that produces substances in a 『higher-energy state』 increases entropy." },
+  { id: "a33", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "An endothermic reaction has a ▁▁▁▁▁, but it can still be spontaneous if {{c2::the positive entropy change of the system is greater in magnitude}}.", a: "An endothermic reaction has a 『negative entropy change in the surroundings』, but it can still be spontaneous if {{c2::the positive entropy change of the system is greater in magnitude}}." },
+  { id: "a34", subject: "chemistry", standard: "Thermochemical Principles", topic: "Thermochemical Principles", type: "flashcard", q: "Common mistake when using q= mcΔT and Δr H° =−q/n", a: "Not converting J to kJ and vice versa" },
+  { id: "a35", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Equilibrium reaction", a: "A reversible reaction where the backwards and forwards reaction are happening at the same rate" },
+  { id: "a36", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What are not included as part of equilibrium calculations?", a: "The solvent and solids" },
+  { id: "a37", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Le Chatelier's principle", a: "Any change made to a reaction at equilibrium creates a change in the equilibrium position which opposes the change" },
+  { id: "a38", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What happens if there is a common ion present in the dissolution of a salt?", a: "The increase in the concentration of the product causes the rate of the reverse reaction to speed up to use up some of the excess. This produces more of the solid salt, decreasing the solubility." },
+  { id: "a39", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What happens if a complex ion can be formed in the dissolution of a salt?", a: "The reaction removes some of the product from the system, decreasing the concentration of the product. As a result, the rate of the forward reaction speeds up to replace some of the product. This causes more solid to dissolve, so the solubility increases." },
+  { id: "a40", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What happens if the product of dissolution can react with hydronium in an acidic solution?", a: "The product reacts with hydronium in the solution, removing it from the system so the concentration of the product decreases. As a result, the speed of the forward reaction increases to replace some of the product. Therefore more solid dissolves, so the solubility increases." },
+  { id: "a41", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What do you need when doing common/complex ion questions?", a: "The reaction for the dissolution and any further reactions" },
+  { id: "a42", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What is another name for the reaction quotient used to predict precipitation?", a: "Ionic product" },
+  { id: "a43", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What condition between Q and Ks indicates that a precipitate will form?", a: "Q > Ks" },
+  { id: "a44", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What is a buffer?", a: "A solution that resists changes in pH when small volumes of strong acid or base are added." },
+  { id: "a45", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What components form a buffer?", a: "A conjugate weak acid/base pair" },
+  { id: "a46", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What concentration relationship should the components of a buffer have?", a: "Fairly similar concentrations, with a mole ratio within about 1:10" },
+  { id: "a47", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Within what pH range is a buffer most effective?", a: "Within ±1 pH unit of the pKa of the weak acid" },
+  { id: "a48", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "When a strong acid or base is added to a buffer, what does it react with?", a: "The opposite component of the buffer" },
+  { id: "a49", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why does adding a strong acid/base to a buffer cause only a small change in pH?", a: "It reacts to produce a much weaker acid/base." },
+  { id: "a50", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "A buffer is a solution that ▁▁▁▁▁ when small amounts of strong acid or base are added. They are formed by a conjugate ▁▁▁▁▁ in a fairly high and similar concentration (with a ▁▁▁▁▁ ratio) and are effective within ▁▁▁▁▁. When a strong acid/base is added to a buffer, it reacts with the ▁▁▁▁▁ to produce a much weaker acid/base, ▁▁▁▁▁.", a: "A buffer is a solution that 『resists changes in pH』 when small amounts of strong acid or base are added. They are formed by a conjugate 『weak acid/base pair』 in a fairly high and similar concentration (with a 『1:10 mole』 ratio) and are effective within 『±1 pH of the pKa of the weak acid』. When a strong acid/base is added to a buffer, it reacts with the 『opposite component of the buffer』 to produce a much weaker acid/base, 『resulting in a small change in pH』." },
+  { id: "a51", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What is the equivalence point of a titration?", a: "The point where the analyte and titrant are present in equimolar amounts." },
+  { id: "a52", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why is the equivalence-point pH of a strong acid/strong base titration 7?", a: "The strong acid and strong base completely neutralise one another." },
+  { id: "a53", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why is the equivalence-point pH of a weak acid/strong base titration greater than 7?", a: "The overall reaction produces a weak base." },
+  { id: "a54", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why is the equivalence-point pH of a strong acid/weak base titration less than 7?", a: "The overall reaction produces a weak acid." },
+  { id: "a55", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What determines the equivalence-point pH of a weak acid/weak base titration?", a: "The relative Ka and Kb values." },
+  { id: "a56", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why does the pH change sharply near the equivalence point?", a: "Most of the analyte has reacted, so the solution can no longer effectively buffer the added titrant." },
+  { id: "a57", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why does a weak acid/strong base titration change slowly in pH before equivalence?", a: "A buffer forms as the strong base converts the weak acid into its conjugate base." },
+  { id: "a58", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "What makes an indicator suitable for a titration?", a: "Its colour-change range overlaps the sharp pH change at the equivalence point." },
+  { id: "a59", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Within what pH range does an indicator generally change colour?", a: "Within ±1 pH unit of its pKa." },
+  { id: "a60", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Why can an indicator give an accurate estimate of the equivalence point?", a: "The pH changes sharply with only a few drops of titrant, causing a distinct colour change near equivalence." },
+  { id: "a61", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Electrical conductivity depends on...", a: "The concentration of mobile ions in the solution" },
+  { id: "a62", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Strong acids/bases ▁▁▁▁▁ in solution to produce a ▁▁▁▁▁. Since the ▁▁▁▁▁ in the solution will be high, the ▁▁▁▁▁ will be good.", a: "Strong acids/bases 『completely dissociate』 in solution to produce a 『high [ions]』. Since the 『concentration of ions』 in the solution will be high, the 『electrical conductivity』 will be good." },
+  { id: "a63", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Salts ▁▁▁▁▁ to produce a ▁▁▁▁▁. Because the ▁▁▁▁▁ in the solution will be high, the solution will be a good ▁▁▁▁▁", a: "Salts 『completely dissociate』 to produce a 『high [ions]』. Because the 『concentration of ions』 in the solution will be high, the solution will be a good 『electrical conductor.』" },
+  { id: "a64", subject: "chemistry", standard: "Aqueous Systems", topic: "Aqueous Systems", type: "flashcard", q: "Weak acids/bases ▁▁▁▁▁ to produce a ▁▁▁▁▁. Because the ▁▁▁▁▁ in the solution will be fairly low, the solution will be a ▁▁▁▁▁.", a: "Weak acids/bases 『partially dissociate』 to produce a 『fairly low [ions]』. Because the 『concentration of ions』 in the solution will be fairly low, the solution will be a 『poor electrical conductor』." },
+  { id: "a65", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What happens when an alkane reacts with Br₂ under UV light?", a: "A slow substitution reaction occurs; Br₂ changes from orange to colourless." },
+  { id: "a66", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What is the test for an alkene using bromine water?", a: "Br₂(aq) rapidly reacts with alkenes; orange bromine water becomes colourless." },
+  { id: "a67", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What happens when an alkene reacts with permanganate?", a: "Purple permanganate solution becomes colourless if acidified, or forms a brown precipitate if neutral." },
+  { id: "a68", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What organic functional groups are oxidised by permanganate or dichromate (with heat)?", a: "Primary alcohol, secondary alcohol, aldehyde" },
+  { id: "a69", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Substitution reaction definition", a: "A reaction where an atom or group of atoms is removed and replaced by an atom or group of atoms." },
+  { id: "a70", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Addition reaction definition", a: "A reaction where a C = C double bond is broken and two atoms or groups are bonded to the carbons originally involved in the C = C bond." },
+  { id: "a71", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Elimination reaction definition", a: "A reaction where an atom or group of atoms is removed from a carbon alongside a hydrogen atom from a neighbouring carbon and a C = C double bond is formed between the two carbons." },
+  { id: "a72", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Markovnikov's rule", a: "In an addition reaction, the major product is the one where the hydrogen is addded to the carbon which originally had more hydrogens attached (\"the rich get richer\")" },
+  { id: "a73", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Zaitseff's rule", a: "In an elimination reaction, the major product is the one where the hydrogen atom is removed from the neighbouring carbon which originally had fewer hydrogens attached (\"the poor get poorer\")" },
+  { id: "a74", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "How are enantiomers distinguished?", a: "Enantiomers rotate plane-polarised light by equal magnitudes in opposite directions" },
+  { id: "a75", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Enantiomers rotate ▁▁▁▁▁ by equal ▁▁▁▁▁ in ▁▁▁▁▁", a: "Enantiomers rotate 『plane-polarised light』 by equal 『magnitudes』 in 『opposite directions』" },
+  { id: "a76", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Conditions for enantiomers to be possible", a: "There must be a chiral carbon which is attached to four different atoms or groups of atoms. This creates two molecules that are mirror images of each other that are non-superimposable" },
+  { id: "a77", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "In order for _ to exist as an enantiomer, there must be a ▁▁▁▁▁ with four different ▁▁▁▁▁ attached to it. This creates two molecules that are ▁▁▁▁▁ of one another and ▁▁▁▁▁. The different isomers will rotate ▁▁▁▁▁ by ▁▁▁▁▁ in ▁▁▁▁▁. This will distinguish to isomers.", a: "In order for _ to exist as an enantiomer, there must be a 『chiral carbon』 with four different 『atoms or groups of atoms』 attached to it. This creates two molecules that are 『mirror images』 of one another and 『non-superimposable』. The different isomers will rotate 『plane-polarised light』 by 『equal magnitudes』 in 『opposite directions』. This will distinguish to isomers." },
+  { id: "a78", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "Enantiomers have different biological properties. Because they have different arrangements of atoms in space, each one happens to \"stick\" to a certain protein and affect what it does.", options: ["Secondary amide naming", "Carboxylic acid --> Acid chloride OR Alcohol --> Haloalkane", "How are enantiomers different aside from rotating plane-polarised light?", "Haloalkane --> alcohol"], correct: 2 },
+  { id: "a79", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "-anal", options: ["Alcohol --> alkene", "Acyl chloride naming", "Secondary amide naming", "Aldehyde naming"], correct: 3 },
+  { id: "a80", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "-one", options: ["Ketone naming", "Haloalkane --> Amine", "Secondary amide naming", "What is a monomer?"], correct: 0 },
+  { id: "a81", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "(O-chain)-yl (other chain)-oate", options: ["Ketone naming", "Ester naming", "What is a monomer?", "Alkene --> Diol"], correct: 1 },
+  { id: "a82", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "-oyl chloride", options: ["Haloalkane --> Alkene", "Acyl chloride naming", "Alkene --> Haloalkane", "Alkene --> Diol"], correct: 1 },
+  { id: "a83", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "N-(N-chain)-yl (other chain)-amide", options: ["Secondary amide naming", "What is a monomer?", "Haloalkane --> Amine", "Alkene --> Haloalkane"], correct: 0 },
+  { id: "a84", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Identification of acyl chloride", a: "Add water. The acyl chloride undergoes a substitution reaction to form a carboxylic acid. The mixture will react vigorously with the water and produce steamy fumes." },
+  { id: "a85", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Identification of aldehyde", a: "Add Tollens' reagent and heat. The aldehyde will oxidise to a carboxylic acid and a silver mirror will form on the surface of the reaction vessel.\nAdd Benedict's/Fehling's reagent and heat. The aldehyde will oxidise to a carboxylic acid and there will be a colour change from a blue solution to a brick-red precipitate" },
+  { id: "a86", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Why is Tollens/Benedict/Fehling reagent a conclusive test for aldehyde?", a: "They are mild oxidising agents that will not oxidise alcohols or ketones" },
+  { id: "a87", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Identification of carboxylic acid", a: "Add a carbonate. The carboxylic acid will undergo an acid/base reaction to produce a carboxylate ion and CO2 gas" },
+  { id: "a88", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What reagent is used to reduce aldehydes and ketones to alcohols?", a: "Sodium borohydride (NaBH4). Not strong enough to reduce carboxylic acids." },
+  { id: "a89", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "Conc. H2SO4 and heat", options: ["What is a monomer?", "Alkene --> alcohol", "Alkene --> Haloalkane", "Alcohol --> alkene"], correct: 3 },
+  { id: "a90", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "Dil. H2SO4 (H+/H2O)", options: ["Haloalkane --> alcohol", "Alkene --> alcohol", "Polymer", "Alcohol --> alkene"], correct: 1 },
+  { id: "a91", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "KOH(aq) or NaOH(aq)", options: ["Haloalkane --> alcohol", "Alkene --> Haloalkane", "Haloalkane --> Alkene", "Ketone naming"], correct: 0 },
+  { id: "a92", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "KOH(alc) or NaOH(alc)", options: ["Alkene --> Alkane", "Secondary amide naming", "Ester naming", "Haloalkane --> Alkene"], correct: 3 },
+  { id: "a93", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "HCl, HBr, HI", options: ["Alkene --> Haloalkane", "Secondary amide naming", "Polymer", "Ester naming"], correct: 0 },
+  { id: "a94", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "H2/Pt (heat)", options: ["Alkene --> Alkane", "Haloalkane --> alcohol", "Carboxylic acid --> Acid chloride OR Alcohol --> Haloalkane", "Secondary amide naming"], correct: 0 },
+  { id: "a95", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "MnO4- or H+/MnO4-", options: ["Alkene --> Diol", "Alkene --> Haloalkane", "Haloalkane --> Alkene", "Alkene --> Alkane"], correct: 0 },
+  { id: "a96", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "Conc. NH3", options: ["Alkene --> alcohol", "Alkene --> Haloalkane", "Alcohol --> alkene", "Haloalkane --> Amine"], correct: 3 },
+  { id: "a97", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "SOCl2, PCl3, PCl5", options: ["Aldehyde naming", "Alkene --> Diol", "Alcohol --> alkene", "Carboxylic acid --> Acid chloride OR Alcohol --> Haloalkane"], correct: 3 },
+  { id: "a98", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Condensation polymerisation reaction definition", a: "Small monomers join together to make a long chain. For each linkage formed a small molecule is released." },
+  { id: "a99", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "A large molecule made from many smaller molecules called monomers joined together.", options: ["Polymer", "Haloalkane --> Alkene", "Alkene --> Haloalkane", "Alkene --> Alkane"], correct: 0 },
+  { id: "a100", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "mcq", q: "A small molecule that can join with other molecules to form a polymer.", options: ["What is a monomer?", "Alkene --> Diol", "Alkene --> Haloalkane", "Carboxylic acid --> Acid chloride OR Alcohol --> Haloalkane"], correct: 0 },
+  { id: "a101", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What is hydrolysis?", a: "A reaction in which water is used to break a bond in a larger organic molecule, forming smaller organic molecules." },
+  { id: "a102", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "How would you explain hydrolysis in an exam answer?", a: "Water is used to break the [ester/amide] linkage, producing smaller organic molecules. The H and OH from water become incorporated into the products." },
+  { id: "a103", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What is a triglyceride?", a: "An ester formed from glycerol and three fatty acids." },
+  { id: "a104", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What chemical test can be used to show that a triglyceride is unsaturated?", a: "Add bromine water. The orange/red-brown colour rapidly disappears as there is an addition reaction with the C = C double bond to form a di-substituted haloalkane." },
+  { id: "a105", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "What is reflux generally used for?", a: "Increasing the yield of organic products by cooling and condensing volatile organic products before they escape." },
+  { id: "a106", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Reflux condenses ▁▁▁▁▁ that have turned into gases back into ▁▁▁▁▁. This allows the reaction to ▁▁▁▁▁ and ensures none of the reactants escape, thus ▁▁▁▁▁. This also means the reaction can be heated without the risk of losing reactant, so the ▁▁▁▁▁.", a: "Reflux condenses 『volatile organic molecules』 that have turned into gases back into 『liquids』. This allows the reaction to 『go to completion』 and ensures none of the reactants escape, thus 『increasing the yield of the product』. This also means the reaction can be heated without the risk of losing reactant, so the 『rate of reaction increases』." },
+  { id: "a107", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Purpose of distillation", a: "Separating organic products by their boiling points, usually to prevent further reaction of desired compounds." },
+  { id: "a108", subject: "chemistry", standard: "Organic Compounds", topic: "Organic Compounds", type: "flashcard", q: "Distillation separates ▁▁▁▁▁ by ▁▁▁▁▁ molecules based on ▁▁▁▁▁.", a: "Distillation separates 『organic molecules』 by 『evaporating and condensing』 molecules based on 『boiling points』." },
+  { id: "a109", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What is the centre of mass?", a: "The position around which the mass of an object or system is evenly distributed" },
+  { id: "a110", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "The centre of mass of an object or system is the position from which forces on it can be ▁▁▁▁▁, as it is the location around which the mass is ▁▁▁▁▁.", a: "The centre of mass of an object or system is the position from which forces on it can be 『considered to be acted on』, as it is the location around which the mass is 『evenly distributed』." },
+  { id: "a111", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "In order for simple harmonic motion to occur, there must be a ▁▁▁▁▁ force proportional to the ▁▁▁▁▁ acting in the ▁▁▁▁▁.", a: "In order for simple harmonic motion to occur, there must be a 『restoring』 force proportional to the 『displacement from the equilibrium position』 acting in the 『opposite direction to the displacement』." },
+  { id: "a112", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "Requirements for simple harmonic motion", a: "Restoring force proportional to the displacement from the equilibrium position in the opposite direction to displacement" },
+  { id: "a113", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "In reality, simple harmonic motion is not sustained forever. As the object oscillates, potential energy transforms to ▁▁▁▁▁ and vice versa such that E(total) = ▁▁▁▁▁. Over time, kinetic energy is lost from the system as ▁▁▁▁▁, and therefore total energy ▁▁▁▁▁. A reduction in E(total) means that ▁▁▁▁▁, causing the ▁▁▁▁▁. This is known as damping.", a: "In reality, simple harmonic motion is not sustained forever. As the object oscillates, potential energy transforms to 『Ek』 and vice versa such that E(total) = 『Ep + Ek』. Over time, kinetic energy is lost from the system as 『heat due to friction』, and therefore total energy 『decreases』. A reduction in E(total) means that 『the maximum potetnial energy will decrease』, causing the 『amplitude of oscillation to decrease』. This is known as damping." },
+  { id: "a114", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What is damping?", a: "The reduction of amplitude in subsequent oscillations due to energy being lost from the system in forms such as heat and sound." },
+  { id: "a115", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "In a vertical circle, the feeling of weight depends on ▁▁▁▁▁. At the bottom of the loop, ▁▁▁▁▁ towards the centre of the loop (Fc = Fr - Fg). Therefore a person feels ▁▁▁▁▁ at the bottom of the loop. At the top of the loop the size of the reaction force is small or negligible as Fg provides ▁▁▁▁▁, so a person feels lighter.", a: "In a vertical circle, the feeling of weight depends on 『the size of the reaction force』. At the bottom of the loop, 『Fr must be greater than Fg to provide Fc』 towards the centre of the loop (Fc = Fr - Fg). Therefore a person feels 『heavier』 at the bottom of the loop. At the top of the loop the size of the reaction force is small or negligible as Fg provides 『some/all of the Fc』, so a person feels lighter." },
+  { id: "a116", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What is rotational intertia?", a: "The ability of an object to resist a change in its rotational motion" },
+  { id: "a117", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What is rotational intertia proportional to?", a: "I ∝ mr^2 where the radius is the distance of the average distribution of mass from the axis of rotation" },
+  { id: "a118", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "Moving some of the mass further away ▁▁▁▁▁ as the mass is distributed further from the ▁▁▁▁▁. This increases ▁▁▁▁▁. In the absence of ▁▁▁▁▁, ▁▁▁▁▁ is conserved so if I increases, ▁▁▁▁▁ (L = Iw)", a: "Moving some of the mass further away 『increases r』 as the mass is distributed further from the 『axis of rotation』. This increases 『rotational inertia』. In the absence of 『net external torque』, 『angular momentum』 is conserved so if I increases, 『w must decrease』 (L = Iw)" },
+  { id: "a119", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What causes damping?", a: "A force acting in the opposing direction of the restoring force, removing energy from the system" },
+  { id: "a120", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "What is resonance?", a: "An increasing amplitude in the oscillation of simple harmonic motion due to a driving force" },
+  { id: "a121", subject: "physics", standard: "Mechanics", topic: "Mechanics", type: "flashcard", q: "Resonance is where a driving force is added into an oscillating system at ▁▁▁▁▁ (the natural frequency). As the frequencies are the same, the energy from the driving force will be ▁▁▁▁▁ into the oscillating system, giving it kinetic energy to oscillate ▁▁▁▁▁.", a: "Resonance is where a driving force is added into an oscillating system at 『the same rate as the frequency of oscillation』 (the natural frequency). As the frequencies are the same, the energy from the driving force will be 『transferred maximally』 into the oscillating system, giving it kinetic energy to oscillate 『at a greater amplitude』." },
+  { id: "a122", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "Standing, or stationary waves occur when two waves with ▁▁▁▁▁ travel in ▁▁▁▁▁. The result is a wave pattern which does not appear to move forwards and instead appears to ▁▁▁▁▁. Places with the greatest amplitude of oscillation are ▁▁▁▁▁ and places with zero amplitude oscillation are called ▁▁▁▁▁.", a: "Standing, or stationary waves occur when two waves with 『identical amplitude and frequency』 travel in 『opposite directions』. The result is a wave pattern which does not appear to move forwards and instead appears to 『oscillate up and down』. Places with the greatest amplitude of oscillation are 『antinodes』 and places with zero amplitude oscillation are called 『nodes』." },
+  { id: "a123", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "What can affect the speed of a standing wave in a string?", a: "Tension and linear density of the string" },
+  { id: "a124", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "What harmonics can closed pipes form?", a: "Odd numbered (ie: 1st, 3rd, 5th...)" },
+  { id: "a125", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "In open pipes, waves reflect off the open end with ▁▁▁▁▁ to form antinodes due to ▁▁▁▁▁. Therefore only waves that form ▁▁▁▁▁ at both ends will form ▁▁▁▁▁. Higher harmonics are all multiples of ▁▁▁▁▁ so all ▁▁▁▁▁ meet the ▁▁▁▁▁ and are able to form and fit the length of the pipe.", a: "In open pipes, waves reflect off the open end with 『no phase change』 to form antinodes due to 『constructive interference』. Therefore only waves that form 『antinodes』 at both ends will form 『standing waves』. Higher harmonics are all multiples of 『half wavelengths』 so all 『harmonics』 meet the 『end conditions』 and are able to form and fit the length of the pipe." },
+  { id: "a126", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "In closed pipes, the waves reflect off the closed end with ▁▁▁▁▁ to form ▁▁▁▁▁ due to ▁▁▁▁▁ and the open end with ▁▁▁▁▁ to form ▁▁▁▁▁ due to ▁▁▁▁▁. Therefore only waves that form a node at the ▁▁▁▁▁ and an antinode at the ▁▁▁▁▁ will form ▁▁▁▁▁. Therefore only ▁▁▁▁▁ can fit a closed pipe, with harmonics being ▁▁▁▁▁ numbered.", a: "In closed pipes, the waves reflect off the closed end with 『a 180 degree phase change』 to form 『nodes』 due to 『destructive interference』 and the open end with 『no phase change』 to form 『antinodes』 due to 『constructive interference』. Therefore only waves that form a node at the 『closed end』 and an antinode at the 『open end』 will form 『standing waves』. Therefore only 『odd multiples of quarter wavelengths』 can fit a closed pipe, with harmonics being 『odd』 numbered." },
+  { id: "a127", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "Resonance is where something is shaken at its ▁▁▁▁▁, so there are ▁▁▁▁▁, causing the ▁▁▁▁▁ to build up to ▁▁▁▁▁.", a: "Resonance is where something is shaken at its 『natural frequency』, so there are 『few energy losses』, causing the 『oscillation』 to build up to 『maximise the amplitude』." },
+  { id: "a128", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "How do standing waves work?", a: "The nodes and antinodes being in fixed position causes the energy of the wave to build, increasing the amplitude and producing a sound." },
+  { id: "a129", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "When blowing air into a pipe, ▁▁▁▁▁. Those that form standing waves will be heard as a ▁▁▁▁▁.", a: "When blowing air into a pipe, 『many frequencies are produced』. Those that form standing waves will be heard as a 『harmonic frequency』." },
+  { id: "a130", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "A moving source of sound approaching an observer will move towards previously emitted wavefronts, such that subsequent wavefronts are emitted ▁▁▁▁▁. This causes wavefronts to ▁▁▁▁▁, causing the ▁▁▁▁▁. The speed of sound remains constant, so frequency will increase.", a: "A moving source of sound approaching an observer will move towards previously emitted wavefronts, such that subsequent wavefronts are emitted 『closer to the previous one』. This causes wavefronts to 『build up in front of the source』, causing the 『apparent wavelength to decrease』. The speed of sound remains constant, so frequency will increase." },
+  { id: "a131", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "What pitch does a person in a moving source hear?", a: "The actual pitch" },
+  { id: "a132", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "As a moving source moves past an observer, the ▁▁▁▁▁ towards the observer rapidly decreases, so the ▁▁▁▁▁.", a: "As a moving source moves past an observer, the 『component of the source's velocity』 towards the observer rapidly decreases, so the 『apparent frequency decreases rapidly』." },
+  { id: "a133", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "While a moving source is moving directly beside an observer, there is ▁▁▁▁▁, so the true frequency will be heard.", a: "While a moving source is moving directly beside an observer, there is 『no component of velocity towards/away from the observer』, so the true frequency will be heard." },
+  { id: "a134", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "Beats are formed when waves from two source have ▁▁▁▁▁, so they are regularly moving between being ▁▁▁▁▁ (making ▁▁▁▁▁ sounds due to ▁▁▁▁▁) and ▁▁▁▁▁ (making ▁▁▁▁▁ sounds due to ▁▁▁▁▁). An observer will hear a ▁▁▁▁▁ in the volume/amplitude of the sound at a frequency equal to the difference between the two source frequencies.", a: "Beats are formed when waves from two source have 『slightly different frequencies』, so they are regularly moving between being 『in phase』 (making 『loud』 sounds due to 『constructive interference』) and 『out of phase』 (making 『quieter』 sounds due to 『destructive interference』). An observer will hear a 『warbling fluctuation』 in the volume/amplitude of the sound at a frequency equal to the difference between the two source frequencies." },
+  { id: "a135", subject: "physics", standard: "Waves", topic: "Waves", type: "flashcard", q: "A moving source behind an observer will move away from ▁▁▁▁▁ causing ▁▁▁▁▁ to be ▁▁▁▁▁. This causes the sound waves to ▁▁▁▁▁ behind the source, so the ▁▁▁▁▁ of the sound will be longer. As ▁▁▁▁▁, a ▁▁▁▁▁ will be observed.", a: "A moving source behind an observer will move away from 『previously emitted wavefronts』 causing 『succesive wavefronts』 to be 『further from each other than if it was stationary』. This causes the sound waves to 『stretch』 behind the source, so the 『perceived wavelength』 of the sound will be longer. As 『the wave speed is constant』, a 『lower frequency』 will be observed." },
+  { id: "a136", subject: "physics", standard: "General", topic: "General", type: "flashcard", q: "White light is composed of a ▁▁▁▁▁, each with their own ▁▁▁▁▁.\nAs there is no ▁▁▁▁▁ between the slits to the ▁▁▁▁▁ all of the colours remain in phase and so ▁▁▁▁▁ and combine to produce ▁▁▁▁▁.\nViolet, which is at one end of the spectrum, has the shortest wavelength, and therefore the smallest ▁▁▁▁▁ of a ▁▁▁▁▁, hence arriving in phase to its 1st order maxima at the ▁▁▁▁▁ (n λ = d sin θ) and is therefore ▁▁▁▁▁.\nRed, which is at the other end of the spectrum, has the longest wavelength, and therefore the largest ▁▁▁▁▁ of a ▁▁▁▁▁, hence arriving in phase to its 1st order maxima at the ▁▁▁▁▁ (n λ = d sin θ), and is therefore ▁▁▁▁▁. \nFor the pattern formed on a screen, on each side of the centre would be a ▁▁▁▁▁ with violet closer to the centre and red on the outside for each order.", a: "White light is composed of a 『mixture of colors』, each with their own 『frequency and wavelength』.\nAs there is no 『path difference』 between the slits to the 『central maxima』 all of the colours remain in phase and so 『constructively interfere』 and combine to produce 『white light』.\nViolet, which is at one end of the spectrum, has the shortest wavelength, and therefore the smallest 『path difference』 of a 『whole wavelength』, hence arriving in phase to its 1st order maxima at the 『smallest angle』 (n λ = d sin θ) and is therefore 『closer to the central maxima』.\nRed, which is at the other end of the spectrum, has the longest wavelength, and therefore the largest 『path difference』 of a 『whole wavelength』, hence arriving in phase to its 1st order maxima at the 『largest angle』 (n λ = d sin θ), and is therefore 『further from the central maxima』. \nFor the pattern formed on a screen, on each side of the centre would be a 『complete spectrum』 with violet closer to the centre and red on the outside for each order." },
+  { id: "a137", subject: "physics", standard: "General", topic: "General", type: "flashcard", q: "With a diffraction grating, the maxima observed will be brighter, as the amount of energy ▁▁▁▁▁ will be greater from the ▁▁▁▁▁.", a: "With a diffraction grating, the maxima observed will be brighter, as the amount of energy 『constructively interfering』 will be greater from the 『additonal sources of light』." },
+  { id: "a138", subject: "physics", standard: "General", topic: "General", type: "flashcard", q: "With a diffraction grating, the resulting interference from many slits results in overall ▁▁▁▁▁, even when adjacent slits are ▁▁▁▁▁. This results in a ▁▁▁▁▁ between the maxima.", a: "With a diffraction grating, the resulting interference from many slits results in overall 『destructive interference』, even when adjacent slits are 『only slightly out of phase』. This results in a 『wide dark region』 between the maxima." },
 ];
-const QUIZ_CATEGORIES = ["All", "Kinematics", "Dynamics", "Momentum", "Energy", "Circular"];
-const QUIZ_INTERVALS = [1, 3, 7, 16, 35]; // days — reached after the 2nd correct answer
-const ANSWER_STYLES = [
-  { shape: "▲", grad: "from-rose-500 to-red-600", ring: "border-rose-500", bg: "bg-rose-500/10" },
-  { shape: "◆", grad: "from-blue-500 to-cyan-600", ring: "border-blue-500", bg: "bg-blue-500/10" },
-  { shape: "●", grad: "from-amber-500 to-yellow-600", ring: "border-amber-500", bg: "bg-amber-500/10" },
-  { shape: "■", grad: "from-emerald-500 to-green-600", ring: "border-emerald-500", bg: "bg-emerald-500/10" },
+
+const QUIZ_INTERVALS = [1, 2, 3]; // days — reached after the 2nd correct answer in a row
+const QUIZ_ANSWER_STYLES = [
+  { shape: "▲", grad: "from-rose-500 to-red-600" },
+  { shape: "◆", grad: "from-blue-500 to-cyan-600" },
+  { shape: "●", grad: "from-amber-500 to-yellow-600" },
+  { shape: "■", grad: "from-emerald-500 to-green-600" },
 ];
 
 function quizToday() { return new Date().toISOString().split("T")[0]; }
-function quizAddDays(n) {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split("T")[0];
-}
+function quizAddDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; }
 function quizIsDue(srs, id) {
   const s = srs[id];
-  if (!s || s.box === -1) return true; // still in the "learn it twice" phase
+  if (!s || s.box === -1) return true; // still needs 2-in-a-row before it "graduates"
   return s.due <= quizToday();
 }
-function shuffleArr(arr) {
+function quizShuffle(arr) {
   const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
+function quizUniq(arr) { return Array.from(new Set(arr)); }
 
 function QuizView({ dark }) {
-  const [srs, setSrs] = useLocalStorage("quiz_srs_v1", {});
-  const [activeCat, setActiveCat] = useState("All");
+  const [srs, setSrs] = useLocalStorage("quiz_srs_v2", {});
+  const [scope, setScope] = useState({ subject: null, standard: null, topic: null });
   const [queue, setQueue] = useState([]);
-  const [current, setCurrent] = useState(undefined); // undefined = not started, null = queue empty
+  const [current, setCurrent] = useState(undefined); // undefined = not in a session yet
   const [selected, setSelected] = useState(null);
   const [revealed, setRevealed] = useState(false);
-  const [session, setSession] = useState({ correct: 0, total: 0 });
+  const [session, setSession] = useState(0);
 
-  function buildQueue(cat) {
-    const pool = QUIZ_QUESTIONS.filter(q => (cat === "All" || q.cat === cat) && quizIsDue(srs, q.id));
-    const shuffled = shuffleArr(pool.map(q => q.id));
-    setQueue(shuffled);
-    drawNext(shuffled);
+  function defaultCardState() { return { streak: 0, box: -1, due: quizToday() }; }
+  function cardState(id) { return srs[id] || defaultCardState(); }
+
+  const quizSubjects = quizUniq(QUIZ_QUESTIONS.map(q => q.subject));
+  const standardsFor = (subj) => quizUniq(QUIZ_QUESTIONS.filter(q => q.subject === subj).map(q => q.standard));
+  const topicsFor = (subj, std) => quizUniq(QUIZ_QUESTIONS.filter(q => q.subject === subj && q.standard === std).map(q => q.topic));
+
+  function scopedQuestions(sc = scope) {
+    return QUIZ_QUESTIONS.filter(q =>
+      (!sc.subject || q.subject === sc.subject) &&
+      (!sc.standard || q.standard === sc.standard) &&
+      (!sc.topic || q.topic === sc.topic));
+  }
+  function dueCountFor(list) { return list.filter(q => quizIsDue(srs, q.id)).length; }
+  function masteredCountFor(list) { return list.filter(q => cardState(q.id).box === QUIZ_INTERVALS.length - 1).length; }
+
+  function buildQueue(sc) {
+    const pool = scopedQuestions(sc).filter(q => quizIsDue(srs, q.id));
+    setQueue(quizShuffle(pool.map(q => q.id)));
   }
 
   function drawNext(q) {
+    setSelected(null);
+    setRevealed(false);
     if (!q || q.length === 0) { setCurrent(null); return; }
     const id = q[0];
     setQueue(q.slice(1));
     setCurrent(QUIZ_QUESTIONS.find(x => x.id === id));
-    setSelected(null);
-    setRevealed(false);
   }
 
-  useEffect(() => { buildQueue(activeCat); /* eslint-disable-next-line */ }, [activeCat]);
+  function startSession(sc) {
+    setScope(sc);
+    const q = quizShuffle(scopedQuestions(sc).filter(x => quizIsDue(srs, x.id)).map(x => x.id));
+    setSession(0);
+    drawNext(q);
+    setQueue(q);
+  }
 
-  function pick(idx) {
+  function applyResult(correct) {
+    if (!current) return;
+    const cs = cardState(current.id);
+    let next;
+    if (!correct) {
+      next = { streak: 0, box: -1, due: quizToday() };
+    } else if (cs.box === -1) {
+      const streak = (cs.streak || 0) + 1;
+      next = streak >= 2
+        ? { streak, box: 0, due: quizAddDays(QUIZ_INTERVALS[0]) }
+        : { streak, box: -1, due: quizToday() };
+    } else {
+      const box = Math.min(cs.box + 1, QUIZ_INTERVALS.length - 1);
+      next = { streak: cs.streak, box, due: quizAddDays(QUIZ_INTERVALS[box]) };
+    }
+    setSrs(prev => ({ ...prev, [current.id]: next }));
+    setSession(s => s + 1);
+  }
+
+  function pickMcq(idx) {
     if (revealed || !current) return;
     setSelected(idx);
     setRevealed(true);
-    const correct = idx === current.correct;
-    setSession(s => ({ correct: s.correct + (correct ? 1 : 0), total: s.total + 1 }));
-    setSrs(prev => {
-      const cur = prev[current.id] || { learn: 0, box: -1, due: quizToday() };
-      let next;
-      if (!correct) {
-        next = { learn: 0, box: -1, due: quizToday() };
-      } else if (cur.box === -1) {
-        const learn = cur.learn + 1;
-        next = learn >= 2
-          ? { learn, box: 0, due: quizAddDays(QUIZ_INTERVALS[0]) }
-          : { learn, box: -1, due: quizToday() };
-      } else {
-        const box = Math.min(cur.box + 1, QUIZ_INTERVALS.length - 1);
-        next = { learn: cur.learn, box, due: quizAddDays(QUIZ_INTERVALS[box]) };
-      }
-      return { ...prev, [current.id]: next };
-    });
+    applyResult(idx === current.correct);
   }
-
-  function continueNext() { drawNext(queue); }
+  function reveal() {
+    if (!current || revealed || current.type === "mcq") return;
+    setRevealed(true);
+  }
+  function rateFlashcard(correct) {
+    applyResult(correct);
+    drawNext(queue);
+  }
+  function nextAfterMcq() { drawNext(queue); }
 
   useEffect(() => {
     function onKey(e) {
-      if (!current) return;
-      if (!revealed && ["1", "2", "3", "4"].includes(e.key)) pick(Number(e.key) - 1);
-      if (revealed && (e.code === "Space" || e.key === "Enter")) { e.preventDefault(); continueNext(); }
+      if (current === undefined || current === null) return;
+      if (current.type !== "mcq") {
+        if (e.code === "Space") { e.preventDefault(); reveal(); }
+        if (revealed) {
+          if (e.key === "1") rateFlashcard(false);
+          if (e.key === "2") rateFlashcard(true);
+        }
+      } else if (!revealed && ["1", "2", "3", "4"].includes(e.key)) {
+        pickMcq(Number(e.key) - 1);
+      } else if (revealed && (e.code === "Space" || e.key === "Enter")) {
+        e.preventDefault(); nextAfterMcq();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    /* eslint-disable-next-line */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, revealed, queue]);
 
-  const dueCount = (current ? 1 : 0) + queue.length;
-  const scopeCards = QUIZ_QUESTIONS.filter(q => activeCat === "All" || q.cat === activeCat);
-  const masteredCount = scopeCards.filter(q => (srs[q.id]?.box ?? -1) === QUIZ_INTERVALS.length - 1).length;
+  const cardBase = `glass rounded-2xl border ${dark ? "glass-dark border-slate-800" : "glass-light border-slate-200"}`;
 
+  function PickerRow({ label, subLabel, due, onClick, iconEl, accentHex }) {
+    return (
+      <button onClick={onClick} className={`w-full flex items-center justify-between gap-3 p-3.5 rounded-xl border text-left btn-magnetic transition-all mb-2 ${dark ? "bg-slate-800/50 border-slate-700/60 hover:border-slate-500" : "bg-white border-slate-200 hover:border-slate-300"}`}>
+        <div className="flex items-center gap-3 min-w-0">
+          {iconEl}
+          <div className="min-w-0">
+            <div className={`text-sm font-semibold truncate ${dark ? "text-slate-200" : "text-slate-800"}`}>{label}</div>
+            {subLabel && <div className={`text-xs font-mono mt-0.5 ${dark ? "text-slate-500" : "text-slate-400"}`}>{subLabel}</div>}
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="text-base font-bold font-mono" style={{ color: due > 0 ? (accentHex || "#8b5cf6") : (dark ? "#475569" : "#cbd5e1") }}>{due}</div>
+          <div className={`text-[9px] font-mono uppercase ${dark ? "text-slate-600" : "text-slate-400"}`}>due</div>
+        </div>
+      </button>
+    );
+  }
+
+  // ── Picker: choose subject ──
+  if (!scope.subject) {
+    return (
+      <div className="animate-fadeUp">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>Quiz</h2>
+            <p className={`text-sm mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Get a question right twice in a row and it graduates to the 1 → 2 → 3 day review cycle</p>
+          </div>
+          <div className="text-right">
+            <div className={`text-2xl font-bold font-mono ${dark ? "text-violet-400" : "text-violet-600"}`}>{dueCountFor(QUIZ_QUESTIONS)}</div>
+            <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>due now</div>
+          </div>
+        </div>
+        {quizSubjects.map(subjId => {
+          const s = getSubject(subjId);
+          const list = QUIZ_QUESTIONS.filter(q => q.subject === subjId);
+          const stds = standardsFor(subjId);
+          return (
+            <PickerRow key={subjId} label={s.label} subLabel={`${stds.length} standard${stds.length === 1 ? "" : "s"} · ${list.length} cards`}
+              due={dueCountFor(list)} accentHex={s.hex}
+              iconEl={<span className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${s.bg} border ${s.border}`}>{s.icon}</span>}
+              onClick={() => setScope({ subject: subjId, standard: null, topic: null })} />
+          );
+        })}
+      </div>
+    );
+  }
+
+  const subj = getSubject(scope.subject);
+
+  // ── Picker: choose standard ──
+  if (!scope.standard) {
+    return (
+      <div className="animate-fadeUp">
+        <div className="flex items-center gap-2 mb-4 font-mono text-xs">
+          <button onClick={() => setScope({ subject: null, standard: null, topic: null })} className={dark ? "text-slate-500 hover:underline" : "text-slate-400 hover:underline"}>All subjects</button>
+          <span className={dark ? "text-slate-700" : "text-slate-300"}>/</span>
+          <span className={dark ? "text-slate-300" : "text-slate-600"}>{subj.label}</span>
+        </div>
+        <h2 className={`text-xl font-bold mb-4 ${dark ? "text-white" : "text-slate-900"}`}>{subj.label}</h2>
+        {standardsFor(scope.subject).map(std => {
+          const list = QUIZ_QUESTIONS.filter(q => q.subject === scope.subject && q.standard === std);
+          const topics = topicsFor(scope.subject, std);
+          return (
+            <PickerRow key={std} label={std} subLabel={`${topics.length} topic${topics.length === 1 ? "" : "s"} · ${list.length} cards`}
+              due={dueCountFor(list)} accentHex={subj.hex}
+              iconEl={<span className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${subj.bg} border ${subj.border}`}>📘</span>}
+              onClick={() => setScope({ subject: scope.subject, standard: std, topic: null })} />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Picker: choose topic (or all topics) ──
+  if (current === undefined) {
+    const stdList = QUIZ_QUESTIONS.filter(q => q.subject === scope.subject && q.standard === scope.standard);
+    return (
+      <div className="animate-fadeUp">
+        <div className="flex items-center gap-2 mb-4 font-mono text-xs flex-wrap">
+          <button onClick={() => setScope({ subject: null, standard: null, topic: null })} className={dark ? "text-slate-500 hover:underline" : "text-slate-400 hover:underline"}>All subjects</button>
+          <span className={dark ? "text-slate-700" : "text-slate-300"}>/</span>
+          <button onClick={() => setScope({ subject: scope.subject, standard: null, topic: null })} className={dark ? "text-slate-500 hover:underline" : "text-slate-400 hover:underline"}>{subj.label}</button>
+          <span className={dark ? "text-slate-700" : "text-slate-300"}>/</span>
+          <span className={dark ? "text-slate-300" : "text-slate-600"}>{scope.standard}</span>
+        </div>
+        <h2 className={`text-xl font-bold mb-4 ${dark ? "text-white" : "text-slate-900"}`}>{scope.standard}</h2>
+        <PickerRow label="All topics in this standard" subLabel={`${stdList.length} cards total`}
+          due={dueCountFor(stdList)} accentHex="#c084fc"
+          iconEl={<span className="w-9 h-9 rounded-xl flex items-center justify-center text-base bg-purple-500/15 border border-purple-500/30">✦</span>}
+          onClick={() => startSession({ subject: scope.subject, standard: scope.standard, topic: null })} />
+        {topicsFor(scope.subject, scope.standard).map(topic => {
+          const list = QUIZ_QUESTIONS.filter(q => q.subject === scope.subject && q.standard === scope.standard && q.topic === topic);
+          return (
+            <PickerRow key={topic} label={topic} subLabel={`${list.length} cards`}
+              due={dueCountFor(list)} accentHex={subj.hex}
+              iconEl={<span className={`w-9 h-9 rounded-xl flex items-center justify-center text-base ${subj.bg} border ${subj.border}`}>{subj.icon}</span>}
+              onClick={() => startSession({ subject: scope.subject, standard: scope.standard, topic })} />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Session ──
+  const sessionList = scopedQuestions(scope);
+  const dueNow = queue.length + (current ? 1 : 0);
   return (
     <div className="animate-fadeUp">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h2 className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>Quiz</h2>
-          <p className={`text-sm mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Answer right twice in a row and a question goes on the 1 → 3 → 7 → 16 → 35 day review schedule</p>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="font-mono text-xs">
+          <button onClick={() => setScope({ subject: scope.subject, standard: scope.standard, topic: null })} className={dark ? "text-slate-500 hover:underline" : "text-slate-400 hover:underline"}>← change topic</button>
         </div>
         <div className="text-right">
-          <div className={`text-2xl font-bold font-mono ${dark ? "text-blue-400" : "text-blue-600"}`}>{dueCount}</div>
-          <div className={`text-xs ${dark ? "text-slate-500" : "text-slate-400"}`}>due now</div>
+          <div className={`text-lg font-bold font-mono ${dark ? "text-violet-400" : "text-violet-600"}`}>{dueNow}</div>
+          <div className={`text-[10px] font-mono uppercase ${dark ? "text-slate-500" : "text-slate-400"}`}>due</div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {QUIZ_CATEGORIES.map(cat => (
-          <button key={cat} onClick={() => setActiveCat(cat)}
-            className={`text-xs font-medium px-3 py-1.5 rounded-full border btn-magnetic transition-all ${activeCat === cat
-              ? (dark ? "bg-blue-500/20 text-blue-300 border-blue-500/40" : "bg-blue-100 text-blue-700 border-blue-300")
-              : (dark ? "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-500" : "bg-slate-100 text-slate-500 border-slate-200")}`}>
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {current === undefined && (
-        <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} p-10 text-center`}>
-          <div className={`text-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>Loading…</div>
-        </div>
-      )}
-
-      {current === null && (
-        <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} p-10 text-center animate-fadeUp`}>
+      {current === null ? (
+        <div className={`${cardBase} p-10 text-center`}>
           <div className="text-4xl mb-3">✓</div>
           <h3 className={`text-lg font-semibold mb-1 ${dark ? "text-slate-200" : "text-slate-700"}`}>Nothing due right now</h3>
-          <p className={`text-sm max-w-xs mx-auto ${dark ? "text-slate-500" : "text-slate-400"}`}>Switch category, or come back later — the schedule works best when it's actually spaced out.</p>
-          {session.total > 0 && (
-            <p className={`text-xs mt-4 font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>This session: {session.correct}/{session.total} correct</p>
-          )}
+          <p className={`text-sm max-w-xs mx-auto ${dark ? "text-slate-500" : "text-slate-400"}`}>Cards you get right come back in 1, then 2, then 3 days. Pick another topic, or come back later.</p>
+          {session > 0 && <p className={`text-xs mt-4 font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>This session: {session} reviewed</p>}
         </div>
-      )}
-
-      {current && (
+      ) : (
         <div>
-          <div className={`rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} border ${dark ? "border-slate-800" : "border-slate-200"} p-6 mb-4 animate-scaleIn`}>
+          <div className={`${cardBase} p-6 mb-4 animate-scaleIn`}>
             <div className="flex items-center gap-2 mb-3">
-              <span className={`text-xs px-2 py-0.5 rounded-full border ${dark ? "bg-blue-500/15 text-blue-300 border-blue-500/30" : "bg-blue-100 text-blue-700 border-blue-300"}`}>⚛ {current.cat}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full border ${subj.badge}`}>{subj.icon} {current.topic}</span>
             </div>
-            <div className={`text-lg leading-snug ${dark ? "text-slate-100" : "text-slate-800"}`}>{current.q}</div>
+            <div className={`text-base leading-snug whitespace-pre-wrap ${dark ? "text-slate-100" : "text-slate-800"}`}>{current.q}</div>
+
+            {current.type === "flashcard" && revealed && (
+              <div className={`mt-4 pt-4 border-t ${dark ? "border-slate-800" : "border-slate-200"}`}>
+                <div className={`text-xs font-mono uppercase tracking-wider mb-1.5 ${dark ? "text-emerald-400" : "text-emerald-600"}`}>Answer</div>
+                <div className={`text-sm leading-relaxed whitespace-pre-wrap ${dark ? "text-slate-200" : "text-slate-700"}`}>{current.a}</div>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {current.options.map((opt, idx) => {
-              const style = ANSWER_STYLES[idx];
-              const isCorrectOpt = idx === current.correct;
-              const isPicked = idx === selected;
-              let cls = `${dark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`;
-              if (revealed) {
-                if (isCorrectOpt) cls = `${style.bg} ${style.ring} text-current border-2`;
-                else if (isPicked) cls = `bg-rose-500/10 border-rose-500 border-2 text-current`;
-                else cls = `${dark ? "bg-slate-800/50 border-slate-800 text-slate-500" : "bg-slate-50 border-slate-100 text-slate-400"}`;
-              }
-              return (
-                <button key={idx} disabled={revealed} onClick={() => pick(idx)}
-                  className={`flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border btn-magnetic transition-all duration-150 ${cls}`}>
-                  <span className={`w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-gradient-to-br ${style.grad}`}>{style.shape}</span>
-                  <span className="text-sm font-medium flex-1">{opt}</span>
-                  {revealed && isCorrectOpt && <span className="text-emerald-400">✓</span>}
-                  {revealed && isPicked && !isCorrectOpt && <span className="text-rose-400">✕</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {revealed && (
-            <div className="flex items-center justify-between mt-4 animate-fadeUp">
-              <span className={`text-xs font-mono ${dark ? "text-slate-500" : "text-slate-400"}`}>
-                {selected === current.correct ? "Correct" : "Not quite"} · session {session.correct}/{session.total}
-              </span>
-              <button onClick={continueNext} className="px-5 py-2 rounded-xl text-sm font-medium text-white btn-magnetic bg-gradient-to-r from-blue-500 to-cyan-600 shadow-lg">
-                Next →
-              </button>
+          {current.type === "mcq" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {current.options.map((opt, idx) => {
+                const style = QUIZ_ANSWER_STYLES[idx];
+                const isCorrectOpt = idx === current.correct;
+                const isPicked = idx === selected;
+                let cls = dark ? "bg-slate-800 border-slate-700 text-slate-200" : "bg-white border-slate-200 text-slate-700";
+                if (revealed) {
+                  if (isCorrectOpt) cls = "bg-emerald-500/10 border-emerald-500 border-2";
+                  else if (isPicked) cls = "bg-rose-500/10 border-rose-500 border-2";
+                  else cls = dark ? "bg-slate-800/50 border-slate-800 text-slate-500" : "bg-slate-50 border-slate-100 text-slate-400";
+                }
+                return (
+                  <button key={idx} disabled={revealed} onClick={() => pickMcq(idx)}
+                    className={`flex items-center gap-3 text-left px-4 py-3.5 rounded-xl border btn-magnetic transition-all duration-150 ${cls}`}>
+                    <span className={`w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-gradient-to-br ${style.grad}`}>{style.shape}</span>
+                    <span className="text-sm font-medium flex-1">{opt}</span>
+                    {revealed && isCorrectOpt && <span className="text-emerald-400">✓</span>}
+                    {revealed && isPicked && !isCorrectOpt && <span className="text-rose-400">✕</span>}
+                  </button>
+                );
+              })}
+              {revealed && (
+                <button onClick={nextAfterMcq} className="sm:col-span-2 mt-1 px-5 py-2.5 rounded-xl text-sm font-medium text-white btn-magnetic bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg">Next →</button>
+              )}
+            </div>
+          ) : !revealed ? (
+            <button onClick={reveal} className={`w-full py-3 rounded-xl border border-dashed text-sm btn-magnetic ${dark ? "border-slate-700 text-slate-500 hover:text-slate-400" : "border-slate-300 text-slate-400 hover:text-slate-500"}`}>tap to reveal, or press space</button>
+          ) : (
+            <div className="flex gap-3">
+              <button onClick={() => rateFlashcard(false)} className="flex-1 py-3 rounded-xl border border-rose-500 bg-rose-500/10 text-rose-400 text-sm font-semibold btn-magnetic">Got it wrong</button>
+              <button onClick={() => rateFlashcard(true)} className="flex-1 py-3 rounded-xl border border-emerald-500 bg-emerald-500/10 text-emerald-400 text-sm font-semibold btn-magnetic">Got it right</button>
             </div>
           )}
         </div>
       )}
 
       <div className={`flex items-center justify-between mt-6 pt-4 border-t text-xs font-mono ${dark ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-400"}`}>
-        <span>mastered: <span className={dark ? "text-emerald-400" : "text-emerald-600"}>{masteredCount}</span>/{scopeCards.length}</span>
-        <button onClick={() => { if (confirm("Reset all quiz progress?")) { setSrs({}); buildQueue(activeCat); } }}
-          className={`px-3 py-1 rounded-lg ${dark ? "hover:bg-slate-800" : "hover:bg-slate-100"}`}>reset progress</button>
+        <div className="flex gap-4">
+          <span>session: <span className={dark ? "text-slate-300" : "text-slate-600"}>{session}</span></span>
+          <span>mastered: <span className="text-emerald-500">{masteredCountFor(sessionList)}</span>/{sessionList.length}</span>
+        </div>
+        <button onClick={() => { if (confirm("Reset progress for this whole quiz bank?")) setSrs({}); }} className={`px-3 py-1 rounded-lg ${dark ? "hover:bg-slate-800" : "hover:bg-slate-100"}`}>reset all progress</button>
       </div>
     </div>
   );

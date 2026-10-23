@@ -114,7 +114,7 @@ const STATUSES = [
   { id: "completed", label: "Completed", color: "text-emerald-400", bg: "bg-emerald-500/20 border-emerald-500/30" },
 ];
 
-const VIEWS = ["dashboard", "tasks", "calendar", "focus", "quiz", "insights"];
+const VIEWS = ["dashboard", "tasks", "calendar", "focus", "quiz", "papers", "insights"];
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -631,6 +631,68 @@ function blocksForDate(iso, allBlocks) {
     }
   });
 }
+
+// ─── PAST PAPERS (Supabase, with localStorage fallback) ─────────────────────────
+// One-time setup in Supabase SQL editor (mirror your `tasks` RLS policy):
+//   create table if not exists past_papers (
+//     id text primary key,
+//     paper_date date not null,
+//     subject text not null,
+//     standard text,
+//     paper_name text,
+//     marks_got numeric not null,
+//     marks_total numeric not null,
+//     grade text,
+//     mistake_tags jsonb default '[]'::jsonb,
+//     mistakes text,
+//     created_at timestamptz default now()
+//   );
+//   alter table past_papers enable row level security;
+//   create policy "past_papers anon all" on past_papers for all using (true) with check (true);
+const PAPER_MISTAKE_TAGS = ["Content gap", "Careless slip", "Misread question", "Ran out of time", "Wrong method", "Units / sig figs", "Not enough evidence"];
+const PAPER_GRADES = [
+  { id: "N", label: "Not Achieved", color: "text-rose-400",    bg: "bg-rose-500/20 border-rose-500/30" },
+  { id: "A", label: "Achieved",     color: "text-amber-400",   bg: "bg-amber-500/20 border-amber-500/30" },
+  { id: "M", label: "Merit",        color: "text-blue-400",    bg: "bg-blue-500/20 border-blue-500/30" },
+  { id: "E", label: "Excellence",   color: "text-emerald-400", bg: "bg-emerald-500/20 border-emerald-500/30" },
+];
+async function dbGetPapers() {
+  return await sbFetch("past_papers?order=paper_date.desc");
+}
+async function dbInsertPaper(p) {
+  return await sbFetch("past_papers", {
+    method: "POST",
+    body: JSON.stringify({
+      id: p.id, paper_date: p.date, subject: p.subject, standard: p.standard || "",
+      paper_name: p.paperName || "", marks_got: p.marksGot, marks_total: p.marksTotal,
+      grade: p.grade || "", mistake_tags: p.tags || [], mistakes: p.mistakes || "",
+      created_at: p.createdAt || new Date().toISOString(),
+    }),
+  });
+}
+async function dbUpdatePaper(p) {
+  return await sbFetch(`past_papers?id=eq.${p.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      paper_date: p.date, subject: p.subject, standard: p.standard || "",
+      paper_name: p.paperName || "", marks_got: p.marksGot, marks_total: p.marksTotal,
+      grade: p.grade || "", mistake_tags: p.tags || [], mistakes: p.mistakes || "",
+    }),
+  });
+}
+async function dbDeletePaper(id) {
+  return await sbFetch(`past_papers?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+}
+function dbToPaper(row) {
+  return {
+    id: row.id, date: row.paper_date, subject: row.subject || "other", standard: row.standard || "",
+    paperName: row.paper_name || "", marksGot: Number(row.marks_got), marksTotal: Number(row.marks_total),
+    grade: row.grade || "", tags: Array.isArray(row.mistake_tags) ? row.mistake_tags : [],
+    mistakes: row.mistakes || "", createdAt: row.created_at,
+  };
+}
+function paperPct(p) { return p.marksTotal > 0 ? (p.marksGot / p.marksTotal) * 100 : 0; }
+function fmtMarks(n) { return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10); }
 
 // ─── SEED BLOCKS (your weekly study routine from the plan) ──────────────────────
 const SEED_BLOCKS = [
@@ -2733,6 +2795,289 @@ function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
   );
 }
 
+// ─── PAST PAPERS ────────────────────────────────────────────────────────────────
+function PaperModal({ paper, dark, onSave, onClose, papers, prefillSubject }) {
+  const blank = { id: null, date: isoOf(new Date()), subject: prefillSubject || "physics", standard: "", paperName: "", marksGot: "", marksTotal: "", grade: "", tags: [], mistakes: "" };
+  const [form, setForm] = useState(paper ? { ...paper, marksGot: String(paper.marksGot), marksTotal: String(paper.marksTotal) } : blank);
+  const [err, setErr] = useState("");
+  const sub = getSubject(form.subject);
+  function set(k, v) { setForm(p => ({ ...p, [k]: v })); setErr(""); }
+  function toggleTag(t) { set("tags", form.tags.includes(t) ? form.tags.filter(x => x !== t) : [...form.tags, t]); }
+
+  const knownStandards = Array.from(new Set(papers.filter(p => p.subject === form.subject && p.standard).map(p => p.standard)));
+
+  function handleSave() {
+    const got = parseFloat(form.marksGot);
+    const total = parseFloat(form.marksTotal);
+    if (!form.standard.trim()) return setErr("Add the standard, e.g. AS91523.");
+    if (!(total > 0) || !(got >= 0)) return setErr("Enter the marks you got and the total available.");
+    if (got > total) return setErr("Marks got can't be more than the total.");
+    onSave({
+      ...form,
+      standard: form.standard.trim(),
+      paperName: form.paperName.trim(),
+      marksGot: got,
+      marksTotal: total,
+      mistakes: form.mistakes.trim(),
+      id: form.id || uuid(),
+      createdAt: form.createdAt || new Date().toISOString(),
+    });
+    onClose();
+  }
+
+  const base = dark
+    ? "bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-violet-500/60"
+    : "bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-violet-400";
+  const labelCls = dark ? "text-slate-400 text-xs font-medium uppercase tracking-wider" : "text-slate-500 text-xs font-medium uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-lg rounded-2xl glass ${dark ? "glass-dark" : "glass-light"} shadow-2xl animate-scaleIn overflow-hidden`}>
+        <div className={`h-1.5 w-full bg-gradient-to-r ${sub.gradient}`} />
+        <div className="p-6 pb-2 flex items-center justify-between">
+          <div>
+            <h2 className={`text-lg font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{form.id ? "Edit Paper" : "Log Past Paper"}</h2>
+            <p className={`text-sm mt-0.5 ${dark ? "text-slate-400" : "text-slate-500"}`}>Marks and the mistakes you made</p>
+          </div>
+          <button onClick={onClose} className={`w-8 h-8 flex items-center justify-center rounded-lg btn-magnetic ${dark ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}>✕</button>
+        </div>
+
+        <div className="p-6 pt-4 space-y-4 max-h-[70vh] overflow-y-auto">
+          <div>
+            <label className={labelCls}>Subject</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SUBJECTS.map(s => (
+                <button key={s.id} onClick={() => set("subject", s.id)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-200 btn-magnetic ${form.subject === s.id ? `${s.badge} border` : dark ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500" : "bg-slate-100 border-slate-200 text-slate-600"}`}>
+                  <span>{s.icon}</span>{s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Standard *</label>
+              <input value={form.standard} onChange={e => set("standard", e.target.value)} list="paper-standards" placeholder="e.g. AS91523" className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm ${base}`} />
+              <datalist id="paper-standards">{knownStandards.map(s => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div>
+              <label className={labelCls}>Paper</label>
+              <input value={form.paperName} onChange={e => set("paperName", e.target.value)} placeholder="e.g. 2023 exam" className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm ${base}`} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Date sat</label>
+              <input type="date" value={form.date} onChange={e => set("date", e.target.value)} className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm ${base}`} />
+            </div>
+            <div>
+              <label className={labelCls}>Marks *</label>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input type="number" min="0" step="0.5" value={form.marksGot} onChange={e => set("marksGot", e.target.value)} placeholder="got" className={`form-input w-full rounded-xl border px-3 py-2.5 text-sm text-center font-mono ${base}`} />
+                <span className={dark ? "text-slate-500" : "text-slate-400"}>/</span>
+                <input type="number" min="1" step="0.5" value={form.marksTotal} onChange={e => set("marksTotal", e.target.value)} placeholder="out of" className={`form-input w-full rounded-xl border px-3 py-2.5 text-sm text-center font-mono ${base}`} />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Grade</label>
+            <div className="mt-1.5 grid grid-cols-5 gap-1.5">
+              <button onClick={() => set("grade", "")} className={`py-2 rounded-xl text-xs font-medium border transition-all duration-200 btn-magnetic ${form.grade === "" ? (dark ? "bg-slate-700 border-slate-600 text-slate-200" : "bg-slate-200 border-slate-300 text-slate-700") : dark ? "bg-slate-800 border-slate-700 text-slate-500" : "bg-slate-100 border-slate-200 text-slate-400"}`}>Not marked</button>
+              {PAPER_GRADES.map(g => (
+                <button key={g.id} onClick={() => set("grade", g.id)} title={g.label} className={`py-2 rounded-xl text-xs font-medium border transition-all duration-200 btn-magnetic ${form.grade === g.id ? `${g.bg} ${g.color} border` : dark ? "bg-slate-800 border-slate-700 text-slate-500" : "bg-slate-100 border-slate-200 text-slate-400"}`}>{g.id}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>What went wrong</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PAPER_MISTAKE_TAGS.map(t => (
+                <button key={t} onClick={() => toggleTag(t)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200 btn-magnetic ${form.tags.includes(t) ? `${sub.badge} border` : dark ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500" : "bg-slate-100 border-slate-200 text-slate-600"}`}>{t}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Mistakes in detail</label>
+            <textarea value={form.mistakes} onChange={e => set("mistakes", e.target.value)} rows={4} placeholder="Question numbers, what you did, and what to do next time" className={`form-input mt-1.5 w-full rounded-xl border px-4 py-2.5 text-sm resize-none ${base}`} />
+          </div>
+
+          {err && <div className="text-xs font-medium text-rose-400">{err}</div>}
+        </div>
+
+        <div className="p-6 pt-2 flex gap-3">
+          <button onClick={onClose} className={`flex-1 py-2.5 rounded-xl text-sm font-medium btn-magnetic transition-all ${dark ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>Cancel</button>
+          <button onClick={handleSave} className={`flex-1 py-2.5 rounded-xl text-sm font-medium btn-magnetic text-white bg-gradient-to-r ${sub.gradient} shadow-lg ${sub.glow}`}>
+            {form.id ? "Save Changes" : "Add Paper"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaperSpark({ values, hex }) {
+  const w = 96, h = 30, pad = 4;
+  if (!values.length) return null;
+  const pts = values.map((v, i) => [
+    values.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (values.length - 1),
+    h - pad - (Math.max(0, Math.min(100, v)) / 100) * (h - pad * 2),
+  ]);
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <line x1="0" y1={h - pad} x2={w} y2={h - pad} stroke="rgba(148,163,184,0.25)" strokeWidth="1" />
+      {pts.length > 1 && <polyline fill="none" stroke={hex} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" points={pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ")} />}
+      <circle cx={last[0]} cy={last[1]} r="3" fill={hex} />
+    </svg>
+  );
+}
+
+function PapersView({ papers, dark, papersDb, onAdd, onEdit, onDelete }) {
+  const [filter, setFilter] = useState(null);
+  const byDateDesc = (a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+  const sorted = [...papers].sort(byDateDesc);
+  const shown = filter ? sorted.filter(p => p.subject === filter) : sorted;
+  const avgOf = (list) => list.length ? list.reduce((s, p) => s + paperPct(p), 0) / list.length : 0;
+
+  const bySubject = SUBJECTS
+    .map(s => {
+      const list = papers.filter(p => p.subject === s.id).sort((a, b) => -byDateDesc(a, b));
+      return { ...s, list, avg: avgOf(list) };
+    })
+    .filter(s => s.list.length > 0);
+
+  const tagCounts = {};
+  shown.forEach(p => (p.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+  const tagRows = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]);
+  const maxTag = tagRows.length ? tagCounts[tagRows[0]] : 1;
+
+  const card = `glass rounded-2xl p-6 border ${dark ? "glass-dark" : "glass-light"}`;
+  const muted = dark ? "text-slate-400" : "text-slate-500";
+  const faint = dark ? "text-slate-500" : "text-slate-400";
+
+  return (
+    <div className="space-y-6 animate-fadeUp">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className={`text-2xl font-bold ${dark ? "text-white" : "text-slate-900"}`}>Past Papers</h2>
+          <p className={`text-sm mt-0.5 ${muted}`}>Log each paper with its marks and what went wrong</p>
+        </div>
+        <button onClick={() => onAdd(filter)} className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white btn-magnetic bg-gradient-to-r from-violet-500 to-purple-600">
+          + Log paper
+        </button>
+      </div>
+
+      {!papersDb && (
+        <div className={`flex items-start gap-2 px-3.5 py-2.5 rounded-xl text-xs ${dark ? "bg-slate-800 border border-slate-700 text-slate-300" : "bg-white border border-slate-200 text-slate-600"}`}>
+          <span>💾</span>
+          <span>Papers are saving on this device only. Create the <b>past_papers</b> table in Supabase (SQL in the file header) to sync everywhere.</span>
+        </div>
+      )}
+
+      {papers.length === 0 ? (
+        <div className={`glass rounded-2xl p-10 border border-dashed text-center ${dark ? "glass-dark" : "glass-light"}`}>
+          <div className="text-4xl mb-3">📝</div>
+          <div className={`text-sm font-semibold ${dark ? "text-slate-200" : "text-slate-700"}`}>No past papers logged yet</div>
+          <p className={`text-xs mt-1 mb-4 ${muted}`}>After your next paper, add the marks and your mistakes to see averages and patterns here.</p>
+          <button onClick={() => onAdd(null)} className="px-4 py-2 rounded-xl text-xs font-medium text-white btn-magnetic bg-gradient-to-r from-violet-500 to-purple-600">Log your first paper</button>
+        </div>
+      ) : (
+        <>
+          {/* Per-subject averages */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {bySubject.map(s => (
+              <button key={s.id} onClick={() => setFilter(f => f === s.id ? null : s.id)}
+                className={`subject-card glass rounded-2xl p-4 border text-left ${filter === s.id ? `${s.bg} ${s.border}` : dark ? "glass-dark" : "glass-light"}`}>
+                <div className="flex items-center justify-between">
+                  <div className={`text-sm font-semibold ${s.text}`}>{s.icon} {s.label}</div>
+                  <div className={`text-xs ${faint}`}>{s.list.length} {s.list.length === 1 ? "paper" : "papers"}</div>
+                </div>
+                <div className="flex items-end justify-between mt-2">
+                  <div className={`text-3xl font-bold font-mono ${dark ? "text-white" : "text-slate-900"}`}>{Math.round(s.avg)}<span className={`text-sm ml-0.5 ${faint}`}>%</span></div>
+                  <PaperSpark values={s.list.map(paperPct)} hex={s.hex} />
+                </div>
+                <div className={`text-xs mt-1 ${faint}`}>average · latest {Math.round(paperPct(s.list[s.list.length - 1]))}%</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Mistake patterns */}
+          <div className={card}>
+            <h3 className={`text-sm font-semibold ${dark ? "text-slate-300" : "text-slate-700"}`}>Mistake patterns{filter ? ` · ${getSubject(filter).label}` : ""}</h3>
+            <p className={`text-xs mt-0.5 mb-4 ${faint}`}>How often each kind of mistake was ticked</p>
+            {tagRows.length === 0 ? (
+              <p className={`text-xs ${muted}`}>Tick what went wrong when you log a paper and the most common mistakes show here.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {tagRows.map(t => (
+                  <div key={t} className="flex items-center gap-3">
+                    <div className={`w-36 flex-shrink-0 text-xs ${dark ? "text-slate-300" : "text-slate-600"}`}>{t}</div>
+                    <div className={`flex-1 h-2 rounded-full overflow-hidden ${dark ? "bg-slate-800" : "bg-slate-200"}`}>
+                      <div className="analytics-bar h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-600" style={{ width: `${(tagCounts[t] / maxTag) * 100}%` }} />
+                    </div>
+                    <div className={`w-6 text-right text-xs font-mono ${muted}`}>{tagCounts[t]}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Filter chips */}
+          {bySubject.length > 1 && (
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setFilter(null)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border btn-magnetic ${!filter ? "bg-violet-500/20 text-violet-300 border-violet-500/30" : dark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600"}`}>All</button>
+              {bySubject.map(s => (
+                <button key={s.id} onClick={() => setFilter(f => f === s.id ? null : s.id)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border btn-magnetic ${filter === s.id ? s.badge : dark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600"}`}>{s.icon} {s.label}</button>
+              ))}
+            </div>
+          )}
+
+          {/* Log */}
+          <div className="space-y-3">
+            {shown.map(p => {
+              const s = getSubject(p.subject);
+              const g = PAPER_GRADES.find(x => x.id === p.grade);
+              return (
+                <div key={p.id} className={`task-card glass rounded-2xl border overflow-hidden ${dark ? "glass-dark" : "glass-light"}`}>
+                  <div className={`h-1 w-full bg-gradient-to-r ${s.gradient}`} />
+                  <div className="p-4 space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className={`text-sm font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{s.icon} {s.label} · {p.standard}</div>
+                        <div className={`text-xs mt-0.5 ${muted}`}>{parseISO(p.date).toLocaleDateString("en-NZ", { day: "numeric", month: "short", year: "numeric" })}{p.paperName ? ` · ${p.paperName}` : ""}</div>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`text-base font-mono font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{fmtMarks(p.marksGot)} / {fmtMarks(p.marksTotal)}</span>
+                        <span className={`text-sm font-mono ${muted}`}>{Math.round(paperPct(p))}%</span>
+                        {g && <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${g.bg} ${g.color}`}>{g.label}</span>}
+                      </div>
+                    </div>
+                    {(p.tags || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.tags.map(t => <span key={t} className={`text-xs px-2 py-0.5 rounded-full border ${s.badge}`}>{t}</span>)}
+                      </div>
+                    )}
+                    {p.mistakes && <p className={`text-sm whitespace-pre-wrap break-words ${dark ? "text-slate-300" : "text-slate-600"}`}>{p.mistakes}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => onEdit(p)} className={`px-3 py-1 rounded-lg text-xs font-medium btn-magnetic ${dark ? "bg-slate-800 text-slate-300 hover:bg-slate-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>Edit</button>
+                      <button onClick={() => onDelete(p.id)} className="px-3 py-1 rounded-lg text-xs font-medium btn-magnetic bg-rose-500/10 text-rose-400 hover:bg-rose-500/20">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [dark, setDark] = useLocalStorage("theme_dark", true);
   const [tasks, setTasks] = useState([]);
@@ -2747,6 +3092,9 @@ export default function App() {
   const [blockModal, setBlockModal] = useState(null); // { block?, date }
   const [dayDetail, setDayDetail] = useState(null);    // ISO date string
   const [calFocus, setCalFocus] = useState(null);      // ISO to jump calendar to
+  const [papers, setPapers] = useState([]);
+  const [papersDb, setPapersDb] = useState(true);       // false → localStorage fallback (table not created yet)
+  const [paperModal, setPaperModal] = useState(null);   // { paper?, subject? }
 
   // Load tasks from Supabase on mount
   useEffect(() => {
@@ -2810,6 +3158,42 @@ export default function App() {
       catch { setBlocksDb(false); persistBlocksLocal(next); setSyncStatus("idle"); }
     } else persistBlocksLocal(next);
   }
+  // Load past papers — Supabase first, fall back to localStorage if the table isn't there yet
+  useEffect(() => {
+    dbGetPapers()
+      .then(rows => { setPapersDb(true); setPapers((rows || []).map(dbToPaper)); })
+      .catch(() => {
+        setPapersDb(false);
+        try {
+          const v = localStorage.getItem("past_papers");
+          setPapers(v ? JSON.parse(v) : []);
+        } catch { setPapers([]); }
+      });
+  }, []);
+
+  function persistPapersLocal(next) { try { localStorage.setItem("past_papers", JSON.stringify(next)); } catch {} }
+
+  async function savePaper(p) {
+    const isNew = !papers.find(x => x.id === p.id);
+    const next = isNew ? [p, ...papers] : papers.map(x => x.id === p.id ? p : x);
+    setPapers(next);
+    if (papersDb) {
+      setSyncStatus("saving");
+      try { isNew ? await dbInsertPaper(p) : await dbUpdatePaper(p); setSyncStatus("idle"); }
+      catch { setPapersDb(false); persistPapersLocal(next); setSyncStatus("idle"); }
+    } else persistPapersLocal(next);
+  }
+  async function deletePaper(id) {
+    if (!confirm("Delete this paper entry?")) return;
+    const next = papers.filter(x => x.id !== id);
+    setPapers(next);
+    if (papersDb) {
+      setSyncStatus("saving");
+      try { await dbDeletePaper(id); setSyncStatus("idle"); }
+      catch { setPapersDb(false); persistPapersLocal(next); setSyncStatus("idle"); }
+    } else persistPapersLocal(next);
+  }
+
   const openBlock = (date, block = null) => setBlockModal({ date, block });
   const openDay = (iso) => setDayDetail(iso);
   const navDay = (delta) => setDayDetail(d => { const n = parseISO(d); n.setDate(n.getDate() + delta); return isoOf(n); });
@@ -2914,6 +3298,7 @@ export default function App() {
     { id: "calendar", label: "Calendar", icon: "📅" },
     { id: "focus", label: "Focus", icon: "⏱" },
     { id: "quiz", label: "Quiz", icon: "⚡" },
+    { id: "papers", label: "Papers", icon: "📝" },
     { id: "insights", label: "Insights", icon: "📊" },
   ];
 
@@ -3132,6 +3517,12 @@ export default function App() {
               )}
               {view === "focus" && <FocusView dark={dark} tasks={tasks} />}
               {view === "quiz" && <QuizView dark={dark} />}
+              {view === "papers" && (
+                <PapersView papers={papers} dark={dark} papersDb={papersDb}
+                  onAdd={(subject) => setPaperModal({ subject })}
+                  onEdit={(p) => setPaperModal({ paper: p })}
+                  onDelete={deletePaper} />
+              )}
               {view === "insights" && <InsightsView tasks={tasks} dark={dark} />}
             </div>
           </main>
@@ -3167,6 +3558,18 @@ export default function App() {
         />
       )}
 
+      {/* Past paper modal */}
+      {paperModal && (
+        <PaperModal
+          paper={paperModal.paper}
+          prefillSubject={paperModal.subject}
+          papers={papers}
+          dark={dark}
+          onSave={savePaper}
+          onClose={() => setPaperModal(null)}
+        />
+      )}
+
       {/* Modal */}
       {modal && (
         <TaskModal
@@ -3183,7 +3586,7 @@ export default function App() {
         <div className="flex justify-around">
           {navItems.map(item => (
             <button key={item.id} onClick={() => navTo(item.id)}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all btn-magnetic ${view === item.id ? "text-violet-400" : dark ? "text-slate-500" : "text-slate-400"}`}>
+              className={`flex flex-col items-center gap-0.5 px-1.5 sm:px-3 py-1.5 rounded-xl transition-all btn-magnetic ${view === item.id ? "text-violet-400" : dark ? "text-slate-500" : "text-slate-400"}`}>
               <span className="text-lg">{item.icon}</span>
               <span className="text-xs font-medium">{item.label}</span>
             </button>

@@ -645,8 +645,11 @@ function blocksForDate(iso, allBlocks) {
 //     grade text,
 //     mistake_tags jsonb default '[]'::jsonb,
 //     mistakes text,
+//     time_spent_min numeric,
 //     created_at timestamptz default now()
 //   );
+// Migration (if the table already exists):
+//   alter table past_papers add column if not exists time_spent_min numeric;
 //   alter table past_papers enable row level security;
 //   create policy "past_papers anon all" on past_papers for all using (true) with check (true);
 const PAPER_MISTAKE_TAGS = ["Content gap", "Careless slip", "Misread question", "Ran out of time", "Wrong method", "Units / sig figs", "Not enough evidence"];
@@ -666,6 +669,7 @@ async function dbInsertPaper(p) {
       id: p.id, paper_date: p.date, subject: p.subject, standard: p.standard || "",
       paper_name: p.paperName || "", marks_got: p.marksGot, marks_total: p.marksTotal,
       grade: p.grade || "", mistake_tags: p.tags || [], mistakes: p.mistakes || "",
+      time_spent_min: p.timeSpent == null ? null : p.timeSpent,
       created_at: p.createdAt || new Date().toISOString(),
     }),
   });
@@ -677,6 +681,7 @@ async function dbUpdatePaper(p) {
       paper_date: p.date, subject: p.subject, standard: p.standard || "",
       paper_name: p.paperName || "", marks_got: p.marksGot, marks_total: p.marksTotal,
       grade: p.grade || "", mistake_tags: p.tags || [], mistakes: p.mistakes || "",
+      time_spent_min: p.timeSpent == null ? null : p.timeSpent,
     }),
   });
 }
@@ -689,6 +694,7 @@ function dbToPaper(row) {
     paperName: row.paper_name || "", marksGot: Number(row.marks_got), marksTotal: Number(row.marks_total),
     grade: row.grade || "", tags: Array.isArray(row.mistake_tags) ? row.mistake_tags : [],
     mistakes: row.mistakes || "", createdAt: row.created_at,
+    timeSpent: row.time_spent_min == null ? null : Number(row.time_spent_min),
   };
 }
 function paperPct(p) { return p.marksTotal > 0 ? (p.marksGot / p.marksTotal) * 100 : 0; }
@@ -2797,8 +2803,8 @@ function BlockModal({ block, date, dark, onSave, onClose, onDelete }) {
 
 // ─── PAST PAPERS ────────────────────────────────────────────────────────────────
 function PaperModal({ paper, dark, onSave, onClose, papers, prefillSubject }) {
-  const blank = { id: null, date: isoOf(new Date()), subject: prefillSubject || "physics", standard: "", paperName: "", marksGot: "", marksTotal: "", grade: "", tags: [], mistakes: "" };
-  const [form, setForm] = useState(paper ? { ...paper, marksGot: String(paper.marksGot), marksTotal: String(paper.marksTotal) } : blank);
+  const blank = { id: null, date: isoOf(new Date()), subject: prefillSubject || "physics", standard: "", paperName: "", marksGot: "", marksTotal: "", grade: "", tags: [], mistakes: "", timeSpent: "" };
+  const [form, setForm] = useState(paper ? { ...paper, marksGot: String(paper.marksGot), marksTotal: String(paper.marksTotal), timeSpent: paper.timeSpent == null ? "" : String(paper.timeSpent) } : blank);
   const [err, setErr] = useState("");
   const sub = getSubject(form.subject);
   function set(k, v) { setForm(p => ({ ...p, [k]: v })); setErr(""); }
@@ -2812,8 +2818,11 @@ function PaperModal({ paper, dark, onSave, onClose, papers, prefillSubject }) {
     if (!form.standard.trim()) return setErr("Add the standard, e.g. AS91523.");
     if (!(total > 0) || !(got >= 0)) return setErr("Enter the marks you got and the total available.");
     if (got > total) return setErr("Marks got can't be more than the total.");
+    const spent = form.timeSpent === "" ? null : parseFloat(form.timeSpent);
+    if (spent != null && !(spent >= 0)) return setErr("Time spent must be a number of minutes.");
     onSave({
       ...form,
+      timeSpent: spent,
       standard: form.standard.trim(),
       paperName: form.paperName.trim(),
       marksGot: got,
@@ -2879,6 +2888,16 @@ function PaperModal({ paper, dark, onSave, onClose, papers, prefillSubject }) {
                 <span className={dark ? "text-slate-500" : "text-slate-400"}>/</span>
                 <input type="number" min="1" step="0.5" value={form.marksTotal} onChange={e => set("marksTotal", e.target.value)} placeholder="out of" className={`form-input w-full rounded-xl border px-3 py-2.5 text-sm text-center font-mono ${base}`} />
               </div>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Time spent (minutes)</label>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <input type="number" min="0" step="1" value={form.timeSpent} onChange={e => set("timeSpent", e.target.value)} placeholder="e.g. 90" className={`form-input w-28 rounded-xl border px-3 py-2.5 text-sm text-center font-mono ${base}`} />
+              {[60, 90, 120, 180].map(m => (
+                <button key={m} onClick={() => set("timeSpent", String(m))} className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border btn-magnetic ${form.timeSpent === String(m) ? `${sub.badge} border` : dark ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-600"}`}>{fmtDur(m)}</button>
+              ))}
             </div>
           </div>
 
@@ -3002,6 +3021,9 @@ function PapersView({ papers, dark, papersDb, onAdd, onEdit, onDelete }) {
                   <PaperSpark values={s.list.map(paperPct)} hex={s.hex} />
                 </div>
                 <div className={`text-xs mt-1 ${faint}`}>average · latest {Math.round(paperPct(s.list[s.list.length - 1]))}%</div>
+                {s.list.some(p => p.timeSpent != null) && (
+                  <div className={`text-xs mt-0.5 ${faint}`}>⏱ {fmtDur(Math.round(s.list.reduce((a, p) => a + (p.timeSpent || 0), 0)))} total</div>
+                )}
               </button>
             ))}
           </div>
@@ -3054,6 +3076,7 @@ function PapersView({ papers, dark, papersDb, onAdd, onEdit, onDelete }) {
                       <div className="flex items-center gap-2.5">
                         <span className={`text-base font-mono font-semibold ${dark ? "text-white" : "text-slate-900"}`}>{fmtMarks(p.marksGot)} / {fmtMarks(p.marksTotal)}</span>
                         <span className={`text-sm font-mono ${muted}`}>{Math.round(paperPct(p))}%</span>
+                        {p.timeSpent != null && <span className={`text-xs font-mono px-2 py-0.5 rounded-md ${dark ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-600"}`}>⏱ {fmtDur(Math.round(p.timeSpent))}</span>}
                         {g && <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${g.bg} ${g.color}`}>{g.label}</span>}
                       </div>
                     </div>
